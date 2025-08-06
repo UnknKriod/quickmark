@@ -1,0 +1,23 @@
+{
+  "quickmark.invitation.title": "Приглашение в команду",
+  "quickmark.invitation.message": "%s приглашает вас в команду",
+  "quickmark.invitation.accept": "Принять",
+  "quickmark.invitation.decline": "Отклонить",
+  "quickmark.command.invite.sent": "Приглашение отправлено %s",
+  "quickmark.command.invite.not_found": "Игрок %s не найден",
+  "quickmark.command.leave.success": "Вы вышли из команды",
+  "quickmark.command.not_leader": "Только лидер команды может приглашать игроков",
+  "quickmark.success.title": "Присоединение к группе",
+  "quickmark.success.message": "Вы присоединились к группе %s",
+  "subtitles.quickmark.ping": "Звук метки",
+  "subtitles.quickmark.invite": "Получено приглашение",
+  "key.quickmark.accept_invitation": "Принять приглашение в группу",
+  "category.quickmark.main": "QuickMark",
+  "quickmark.invitation.accept_hint": "Нажмите [%s], чтобы принять приглашение",
+  "quickmark.ping": "Если вы видите это сообщение, значит у вас не установлен мод QuickMark",
+  "quickmark.tooltip.line1": "Метка игрока %s",
+  "quickmark.tooltip.danger.line1": "ОПАСНОСТЬ!",
+  "quickmark.tooltip.line2": "Нажмите колесико мыши, чтобы удалить",
+  "quickmark.info.invited.title": "Присоединение к группе",
+  "quickmark.info.invited.message": "%s присоединился к группе"
+}

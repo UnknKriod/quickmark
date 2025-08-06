@@ -1,0 +1,17 @@
+{
+  "normal_ping": {
+    "sounds": [
+      "quickmark:normal_ping"
+    ]
+  },
+  "danger_ping": {
+    "sounds": [
+      "quickmark:danger_ping"
+    ]
+  },
+  "invite": {
+    "sounds": [
+      "quickmark:invite"
+    ]
+  }
+}

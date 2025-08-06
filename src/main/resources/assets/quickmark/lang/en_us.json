@@ -1,0 +1,22 @@
+{
+  "quickmark.invitation.title": "Team Invitation",
+  "quickmark.invitation.message": "%s invites you to join a team",
+  "quickmark.invitation.accept": "Accept",
+  "quickmark.invitation.decline": "Decline",
+  "quickmark.command.invite.sent": "Invitation sent to %s",
+  "quickmark.command.invite.not_found": "Player %s not found",
+  "quickmark.command.leave.success": "You left the team",
+  "quickmark.command.not_leader": "Only team leader can invite players",
+  "quickmark.success.title": "JOINED TEAM",
+  "quickmark.success.message": "You joined the team of %s",
+  "subtitles.quickmark.ping": "Ping sound",
+  "subtitles.quickmark.invite": "Invitation received",
+  "key.quickmark.accept_invitation": "Accept an invitation to a group",
+  "category.quickmark.main": "QuickMark",
+  "quickmark.invitation.accept_hint": "Press [%s] to accept the invitation",
+  "quickmark.tooltip.line1": "%s`s mark",
+  "quickmark.tooltip.danger.line1": "DANGER!",
+  "quickmark.tooltip.line2": "Click the middle mouse button to delete",
+  "quickmark.info.invited.title": "Joining the team",
+  "quickmark.info.invited.message": "%s joined your group"
+}
