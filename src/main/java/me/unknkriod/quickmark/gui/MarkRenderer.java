@@ -88,7 +88,12 @@ public class MarkRenderer {
 
             if (result != null && result.transparency > 0.3f) {
                 beamHoveredMark = mark;
-                beamHoveredPosition = new Vec3d(markBlockPos.getX() + 0.5, result.yPosition, markBlockPos.getZ() + 0.5);
+                // Фиксируем позицию на высоте игрока
+                beamHoveredPosition = new Vec3d(
+                        markBlockPos.getX() + 0.5,
+                        cameraPos.y, // Всегда используем высоту игрока
+                        markBlockPos.getZ() + 0.5
+                );
                 beamHoveredTransparency = result.transparency;
                 break; // Берем первое взаимодействие
             }
@@ -141,7 +146,7 @@ public class MarkRenderer {
         double dy = lookDirection.y;
         double dz = lookDirection.z;
 
-        // Если луч почти горизонтальный, проверяем по-другому
+        // Если луч почти вертикальный, пропускаем проверку
         if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) {
             return null;
         }
@@ -165,12 +170,8 @@ public class MarkRenderer {
             return null; // Слишком далеко от центра
         }
 
-        // Вычисляем Y позицию на центральной линии луча (где должна быть иконка)
-        double yPosition = closestPoint.y;
-
-        // Ограничиваем Y координату в пределах вертикального луча
-        if (yPosition < DOWN_RANGE) yPosition = DOWN_RANGE;
-        if (yPosition > MAX_Y) yPosition = MAX_Y;
+        // ФИКСИРУЕМ Y ПОЗИЦИЮ НА ВЫСОТЕ ИГРОКА
+        double yPosition = cameraPos.y;
 
         // Вычисляем прозрачность в зависимости от расстояния до центра
         float transparency;
