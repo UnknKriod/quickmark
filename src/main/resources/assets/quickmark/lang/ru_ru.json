@@ -14,7 +14,6 @@
   "key.quickmark.accept_invitation": "Принять приглашение в группу",
   "category.quickmark.main": "QuickMark",
   "quickmark.invitation.accept_hint": "Нажмите [%s], чтобы принять приглашение",
-  "quickmark.ping": "Если вы видите это сообщение, значит у вас не установлен мод QuickMark",
   "quickmark.tooltip.line1": "Метка игрока %s",
   "quickmark.tooltip.danger.line1": "ОПАСНОСТЬ!",
   "quickmark.tooltip.line2": "Нажмите колесико мыши, чтобы удалить",

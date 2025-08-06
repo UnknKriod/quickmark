@@ -7,7 +7,7 @@
   "quickmark.command.invite.not_found": "Player %s not found",
   "quickmark.command.leave.success": "You left the team",
   "quickmark.command.not_leader": "Only team leader can invite players",
-  "quickmark.success.title": "JOINED TEAM",
+  "quickmark.success.title": "Joined the team",
   "quickmark.success.message": "You joined the team of %s",
   "subtitles.quickmark.ping": "Ping sound",
   "subtitles.quickmark.invite": "Invitation received",
