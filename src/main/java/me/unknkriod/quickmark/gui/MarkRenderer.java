@@ -280,29 +280,55 @@ public class MarkRenderer {
     /** Отрисовка статичной иконки метки (фиксированная позиция на экране) */
     private static void drawStaticMarkIcon(DrawContext context, Mark mark, Vec3d markPos, Vec3d cameraPos) {
         MinecraftClient client = MinecraftClient.getInstance();
-
-        // Проверяем, видна ли метка (не заблокирована блоками)
         boolean isVisible = isMarkVisible(cameraPos, markPos);
+        if (isVisible) return;
 
-        // Если метка видна, не показываем статичную иконку
-        if (isVisible) {
-            return;
-        }
-
-        // Вычисляем позицию на горизонтальном центре луча на высоте игрока
+        // 1. Исправление: Используем реальную позицию метки вместо центра блока
         BlockPos markBlockPos = mark.getPosition();
-        Vec3d projectedPos = new Vec3d(
+        Vec3d exactMarkPos = new Vec3d(
                 markBlockPos.getX() + 0.5,
-                cameraPos.y, // Высота игрока
+                markBlockPos.getY() + 0.5,  // Учитываем высоту метки
                 markBlockPos.getZ() + 0.5
         );
 
-        // Проецируем эту позицию на экран
+        // 2. Исправление: Рассчитываем направление к метке (3D вектор)
+        Vec3d direction = exactMarkPos.subtract(cameraPos).normalize();
+
+        // 3. Исправление: Точка для проецирования - перед камерой в направлении метки
+        Vec3d projectedPos = cameraPos.add(direction.multiply(1000));
+
+        // Проецируем на экран
         Vec3d screenPos = projectToScreen(client, projectedPos);
         if (screenPos == null) return;
 
+        int width = client.getWindow().getScaledWidth();
+        int height = client.getWindow().getScaledHeight();
+        int centerX = width / 2;
+        int centerY = height / 2;
+
         int x = (int) screenPos.x;
         int y = (int) screenPos.y;
+
+        // 4. Исправление: Ограничиваем позицию краями экрана
+        if (x < 0 || x >= width || y < 0 || y >= height) {
+            double dx = x - centerX;
+            double dy = y - centerY;
+
+            double scaleX = Double.MAX_VALUE;
+            double scaleY = Double.MAX_VALUE;
+
+            if (Math.abs(dx) > 1e-5) {
+                scaleX = (dx > 0 ? width - centerX : centerX) / Math.abs(dx);
+            }
+            if (Math.abs(dy) > 1e-5) {
+                scaleY = (dy > 0 ? height - centerY : centerY) / Math.abs(dy);
+            }
+
+            double scale = Math.min(scaleX, scaleY);
+            x = centerX + (int) (Math.signum(dx) * Math.min(Math.abs(dx), centerX * scale));
+            y = centerY + (int) (Math.signum(dy) * Math.min(Math.abs(dy), centerY * scale));
+        }
+
 
         // Получаем цвет команды для метки
         Color markColor = getColorForMark(mark);
