@@ -281,112 +281,163 @@ public class MarkRenderer {
     /** Отрисовка статичной иконки метки (фиксированная позиция на экране) */
     private static void drawStaticMarkIcon(DrawContext context, Mark mark, Vec3d markPos, Vec3d cameraPos) {
         MinecraftClient client = MinecraftClient.getInstance();
-        boolean isVisible = isMarkVisible(cameraPos, markPos);
-        if (isVisible) return;
 
-        // 1. Исправление: Используем реальную позицию метки вместо центра блока
+        // Проверяем, видна ли метка (не заблокирована блоками)
+        boolean isVisible = isBeamVisible(cameraPos, markPos);
+
+        // Если метка видна, не показываем статичную иконку
+        if (isVisible) {
+            return;
+        }
+
+        // Вычисляем позицию на горизонтальном центре луча на высоте игрока
         BlockPos markBlockPos = mark.getPosition();
-        Vec3d exactMarkPos = new Vec3d(
+        Vec3d projectedPos = new Vec3d(
                 markBlockPos.getX() + 0.5,
-                markBlockPos.getY() + 0.5,  // Учитываем высоту метки
+                cameraPos.y, // Высота игрока
                 markBlockPos.getZ() + 0.5
         );
 
-        // 2. Исправление: Рассчитываем направление к метке (3D вектор)
-        Vec3d direction = exactMarkPos.subtract(cameraPos).normalize();
-
-        // 3. Исправление: Точка для проецирования - перед камерой в направлении метки
-        Vec3d projectedPos = cameraPos.add(direction.multiply(1000));
-
-        // Проецируем на экран
+        // Проецируем эту позицию на экран
         Vec3d screenPos = projectToScreen(client, projectedPos);
         if (screenPos == null) return;
-
-        int width = client.getWindow().getScaledWidth();
-        int height = client.getWindow().getScaledHeight();
-        int centerX = width / 2;
-        int centerY = height / 2;
 
         int x = (int) screenPos.x;
         int y = (int) screenPos.y;
 
-        // 4. Исправление: Ограничиваем позицию краями экрана
-        if (x < 0 || x >= width || y < 0 || y >= height) {
-            double dx = x - centerX;
-            double dy = y - centerY;
+        // Рассчитываем горизонтальное расстояние до луча метки
+        double markX = markBlockPos.getX() + 0.5;
+        double markZ = markBlockPos.getZ() + 0.5;
+        double dx = cameraPos.x - markX;
+        double dz = cameraPos.z - markZ;
+        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-            double scaleX = Double.MAX_VALUE;
-            double scaleY = Double.MAX_VALUE;
-
-            if (Math.abs(dx) > 1e-5) {
-                scaleX = (dx > 0 ? width - centerX : centerX) / Math.abs(dx);
-            }
-            if (Math.abs(dy) > 1e-5) {
-                scaleY = (dy > 0 ? height - centerY : centerY) / Math.abs(dy);
-            }
-
-            double scale = Math.min(scaleX, scaleY);
-            x = centerX + (int) (Math.signum(dx) * Math.min(Math.abs(dx), centerX * scale));
-            y = centerY + (int) (Math.signum(dy) * Math.min(Math.abs(dy), centerY * scale));
+        // Вычисляем прозрачность аналогично интерактивным иконкам
+        float transparency;
+        if (horizontalDistance <= BEAM_CENTER_TOLERANCE) {
+            transparency = 1.0f;
+        } else if (horizontalDistance <= FADE_DISTANCE) {
+            float fadeProgress = (float)(horizontalDistance - BEAM_CENTER_TOLERANCE) /
+                    (float)(FADE_DISTANCE - BEAM_CENTER_TOLERANCE);
+            transparency = Math.max(0.3f, 1.0f - fadeProgress);
+        } else {
+            transparency = 0.3f;
         }
 
+        // Рассчитываем масштаб иконки в зависимости от расстояния
+        double distance = calculateDistanceToBeam(cameraPos, mark.getPosition());
+        float scaleFactor = calculateIconScale(distance);
 
         // Получаем цвет команды для метки
         Color markColor = getColorForMark(mark);
         int colorInt = (markColor.getRed() << 16) | (markColor.getGreen() << 8) | markColor.getBlue();
 
-        // Рисуем слабое свечение для статичной метки
-        int glowSize = MARK_ICON_SIZE + 2;
-        int halfGlowSize = glowSize / 2;
+        // Рассчитываем альфа-каналы на основе прозрачности
+        int glowAlpha = (int)(0x30 * transparency);
+        int borderAlpha = (int)(0xAA * transparency);
+        int backgroundAlpha = (int)(0xC0 * transparency);
+        int textAlpha = (int)(0xFF * transparency);
 
-        context.fill(x - halfGlowSize, y - halfGlowSize,
-                x + halfGlowSize, y + halfGlowSize,
-                (colorInt & 0xFFFFFF) | 0x30000000);
+        // Рассчитываем размеры с учетом масштаба
+        int scaledIconSize = (int) (MARK_ICON_SIZE * scaleFactor);
+        int scaledGlowSize = scaledIconSize + 2;
+        int halfScaledGlowSize = scaledGlowSize / 2;
+        int halfScaledSize = scaledIconSize / 2;
 
-        // Рисуем иконку обычного размера
-        int halfSize = MARK_ICON_SIZE / 2;
+        // Рисуем свечение с учетом прозрачности
+        context.fill(x - halfScaledGlowSize, y - halfScaledGlowSize,
+                x + halfScaledGlowSize, y + halfScaledGlowSize,
+                (colorInt & 0xFFFFFF) | (glowAlpha << 24));
 
+        // Рисуем иконку с новым масштабом
         GuiComponent.drawTexture(context, MARK,
-                x - halfSize,
-                y - halfSize,
+                x - halfScaledSize,
+                y - halfScaledSize,
                 0, 0,
-                MARK_ICON_SIZE, MARK_ICON_SIZE,
-                MARK_ICON_SIZE, MARK_ICON_SIZE);
+                scaledIconSize, scaledIconSize,
+                scaledIconSize, scaledIconSize);
 
-        // Тонкая обводка
-        context.drawBorder(x - halfSize - 1, y - halfSize - 1,
-                MARK_ICON_SIZE + 2, MARK_ICON_SIZE + 2,
-                (colorInt & 0xFFFFFF) | 0xAA000000);
+        // Обводка с учетом прозрачности и масштаба
+        context.drawBorder(x - halfScaledSize - 1, y - halfScaledSize - 1,
+                scaledIconSize + 2, scaledIconSize + 2,
+                (colorInt & 0xFFFFFF) | (borderAlpha << 24));
 
         // Расстояние до луча для статичной иконки
-        double distance = calculateDistanceToBeam(cameraPos, mark.getPosition());
         String distanceText = Math.round(distance) + "м";
         int textWidth = client.textRenderer.getWidth(distanceText);
 
-        // Позиция текста под иконкой
+        // Позиция текста под иконкой (учитываем масштаб)
         int textX = x - textWidth / 2;
-        int textY = y + halfSize + MARK_DISTANCE_OFFSET;
+        int textY = y + halfScaledSize + MARK_DISTANCE_OFFSET;
 
-        // Полупрозрачный фон для текста
+        // Фон для текста с учетом прозрачности
         int padding = 2;
         context.fill(textX - padding, textY - 1,
                 textX + textWidth + padding,
                 textY + client.textRenderer.fontHeight + 1,
-                0xC0000000);
+                (backgroundAlpha << 24));
 
-        // Рисуем текст с обводкой
-        drawTextWithOutline(context, client.textRenderer, distanceText, textX, textY, 0xFFFFFF, 0x000000);
+        // Цвета текста
+        int textColor = 0xFFFFFF | (textAlpha << 24);
+        int outlineColor = textAlpha << 24;
+
+        // Рисуем текст с обводкой и прозрачностью
+        drawTextWithOutlineAndAlpha(context, client.textRenderer,
+                distanceText, textX, textY, textColor, outlineColor, transparency);
     }
 
-    /** Проверяет, видна ли метка (не заблокирована блоками) */
-    private static boolean isMarkVisible(Vec3d cameraPos, Vec3d markPos) {
+    /** Рассчитывает масштаб иконки в зависимости от расстояния */
+    private static float calculateIconScale(double distance) {
+        // Настройки масштабирования
+        final float MIN_SCALE = 0.65f;
+        final float MAX_SCALE = 1.75f;
+        final float MAX_DISTANCE = 100.0f; // Максимальное расстояние для масштабирования
+
+        // Ограничиваем расстояние
+        distance = Math.min(distance, MAX_DISTANCE);
+
+        // Рассчитываем коэффициент интерполяции (0 на близком расстоянии, 1 на максимальном)
+        float factor = (float) (distance / MAX_DISTANCE);
+
+        // Линейная интерполяция между MAX_SCALE и MIN_SCALE
+        return MAX_SCALE - factor * (MAX_SCALE - MIN_SCALE);
+    }
+
+    /** Проверяет, виден ли луч метки (хотя бы частично) */
+    private static boolean isBeamVisible(Vec3d cameraPos, Vec3d markPos) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null) return false;
 
-        // Делаем raycast от камеры к метке
+        double markX = markPos.x;
+        double markZ = markPos.z;
+
+        // Определяем диапазон высот для проверки
+        double minY = Math.max(DOWN_RANGE, cameraPos.y - 10);
+        double maxY = Math.min(MAX_Y, cameraPos.y + 20);
+
+        // Шаг проверки - каждые 2 блока
+        double step = 2.0;
+
+        // Проверяем несколько точек вдоль луча
+        for (double y = minY; y <= maxY; y += step) {
+            Vec3d beamPoint = new Vec3d(markX, y, markZ);
+            if (isPointVisible(cameraPos, beamPoint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Проверяет видимость конкретной точки */
+    private static boolean isPointVisible(Vec3d cameraPos, Vec3d point) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) return false;
+
+        // Делаем raycast от камеры к точке
         RaycastContext context = new RaycastContext(
                 cameraPos,
-                markPos,
+                point,
                 RaycastContext.ShapeType.COLLIDER,
                 RaycastContext.FluidHandling.NONE,
                 client.player
