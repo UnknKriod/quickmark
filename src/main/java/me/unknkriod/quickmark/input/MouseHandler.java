@@ -12,7 +12,7 @@ import me.unknkriod.quickmark.mark.MarkType;
 public class MouseHandler {
     private static long lastPressTime = 0;
     private static final long DOUBLE_CLICK_INTERVAL = 250; // Интервал для двойного клика
-    private static final long MIN_MARK_INTERVAL = 500; // Минимальный интервал между метками
+    private static final long MIN_MARK_INTERVAL = 100; // Минимальный интервал между метками
     private static boolean waitingForSecondClick = false;
     private static MarkType pendingMarkType = null;
     private static boolean middlePressed = false;
