@@ -170,6 +170,11 @@ public class MarkRenderer {
             return null; // Слишком далеко от центра
         }
 
+        // Проверяем видимость точки взаимодействия
+        if (!isPointVisible(cameraPos, closestPoint)) {
+            return null;
+        }
+
         // ФИКСИРУЕМ Y ПОЗИЦИЮ НА ВЫСОТЕ ИГРОКА
         double yPosition = cameraPos.y;
 
@@ -282,10 +287,10 @@ public class MarkRenderer {
     private static void drawStaticMarkIcon(DrawContext context, Mark mark, Vec3d markPos, Vec3d cameraPos) {
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Проверяем, видна ли метка (не заблокирована блоками)
+        // Проверяем, виден ли луч метки
         boolean isVisible = isBeamVisible(cameraPos, markPos);
 
-        // Если метка видна, не показываем статичную иконку
+        // Если луч виден, не показываем статичную иконку
         if (isVisible) {
             return;
         }
@@ -328,7 +333,6 @@ public class MarkRenderer {
         double distance = calculateDistanceToBeam(cameraPos, mark.getPosition());
         float scaleFactor = calculateIconScale(distance);
 
-        // Получаем цвет команды для метки
         Color markColor = getColorForMark(mark);
         int colorInt = (markColor.getRed() << 16) | (markColor.getGreen() << 8) | markColor.getBlue();
 
@@ -338,18 +342,15 @@ public class MarkRenderer {
         int backgroundAlpha = (int)(0xC0 * transparency);
         int textAlpha = (int)(0xFF * transparency);
 
-        // Рассчитываем размеры с учетом масштаба
         int scaledIconSize = (int) (MARK_ICON_SIZE * scaleFactor);
         int scaledGlowSize = scaledIconSize + 2;
         int halfScaledGlowSize = scaledGlowSize / 2;
         int halfScaledSize = scaledIconSize / 2;
 
-        // Рисуем свечение с учетом прозрачности
         context.fill(x - halfScaledGlowSize, y - halfScaledGlowSize,
                 x + halfScaledGlowSize, y + halfScaledGlowSize,
                 (colorInt & 0xFFFFFF) | (glowAlpha << 24));
 
-        // Рисуем иконку с новым масштабом
         GuiComponent.drawTexture(context, MARK,
                 x - halfScaledSize,
                 y - halfScaledSize,
@@ -357,16 +358,12 @@ public class MarkRenderer {
                 scaledIconSize, scaledIconSize,
                 scaledIconSize, scaledIconSize);
 
-        // Обводка с учетом прозрачности и масштаба
         context.drawBorder(x - halfScaledSize - 1, y - halfScaledSize - 1,
                 scaledIconSize + 2, scaledIconSize + 2,
                 (colorInt & 0xFFFFFF) | (borderAlpha << 24));
 
-        // Расстояние до луча для статичной иконки
         String distanceText = Math.round(distance) + "м";
         int textWidth = client.textRenderer.getWidth(distanceText);
-
-        // Позиция текста под иконкой (учитываем масштаб)
         int textX = x - textWidth / 2;
         int textY = y + halfScaledSize + MARK_DISTANCE_OFFSET;
 
