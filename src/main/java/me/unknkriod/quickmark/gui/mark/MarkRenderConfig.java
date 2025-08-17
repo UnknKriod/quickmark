@@ -10,9 +10,9 @@ public class MarkRenderConfig {
     private static final long PARTICLE_INTERVAL = 200;
 
     // Параметры луча
-    private static final float BEAM_WIDTH = 2.0f;
+    private static final float BEAM_SCREEN_WIDTH = 150.0f;
     private static final double BEAM_CENTER_TOLERANCE = 0.9;
-    private static final double FADE_DISTANCE = 0.9;
+    private static final double FADE_DISTANCE = 1.5;
     private static final float MIN_INTERACTION_TRANSPARENCY = 0.3f;
 
     // Параметры иконок
@@ -23,7 +23,7 @@ public class MarkRenderConfig {
     private static final float MAX_SCALE_DISTANCE = 100.0f;
 
     // Параметры опасных меток
-    private static final float DANGER_BEAM_WIDTH = 2.0f;
+    private static final float DANGER_BEAM_SCREEN_WIDTH = 150.0f;
     private static final int DANGER_UP_RANGE = 150;
     private static final int DANGER_DOWN_RANGE = 15;
     private static final Color DANGER_BEAM_COLOR = new Color(181, 1, 1, 255);
@@ -37,7 +37,7 @@ public class MarkRenderConfig {
     public int getHoverThreshold() { return HOVER_THRESHOLD; }
     public long getParticleInterval() { return PARTICLE_INTERVAL; }
 
-    public float getBeamWidth() { return BEAM_WIDTH; }
+    public float getBeamScreenWidth() { return BEAM_SCREEN_WIDTH; }
     public double getBeamCenterTolerance() { return BEAM_CENTER_TOLERANCE; }
     public double getFadeDistance() { return FADE_DISTANCE; }
     public float getMinInteractionTransparency() { return MIN_INTERACTION_TRANSPARENCY; }
@@ -48,7 +48,7 @@ public class MarkRenderConfig {
     public float getMaxIconScale() { return MAX_ICON_SCALE; }
     public float getMaxScaleDistance() { return MAX_SCALE_DISTANCE; }
 
-    public float getDangerBeamWidth() { return DANGER_BEAM_WIDTH; }
+    public float getDangerBeamScreenWidth() { return DANGER_BEAM_SCREEN_WIDTH; }
     public int getDangerUpRange() { return DANGER_UP_RANGE; }
     public int getDangerDownRange() { return DANGER_DOWN_RANGE; }
     public Color getDangerBeamColor() { return DANGER_BEAM_COLOR; }

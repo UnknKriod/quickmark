@@ -40,11 +40,16 @@ public class MarkRenderer {
         matrices.push();
         matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
 
+        float fov = client.options.getFov().getValue();
+        int screenWidth = client.getWindow().getWidth();
+
         for (Mark mark : MarkManager.getAllMarks()) {
             if (mark.isExpired()) continue;
 
             BlockPos pos = mark.getPosition();
-            BEAM_RENDERER.renderVerticalBeam(matrices, vertexConsumers, pos, mark, cameraPos);
+            BEAM_RENDERER.renderVerticalBeam(
+                    matrices, vertexConsumers, pos, mark, cameraPos, fov, screenWidth
+            );
 
             if (mark.getType() == MarkType.DANGER) {
                 spawnDangerParticles(pos);

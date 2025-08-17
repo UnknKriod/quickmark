@@ -21,10 +21,10 @@ public class BeamRenderer {
     }
 
     public void renderVerticalBeam(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
-                                   BlockPos pos, Mark mark, Vec3d cameraPos) {
+                                   BlockPos pos, Mark mark, Vec3d cameraPos, float fov, int screenWidth) {
         // Определяем параметры в зависимости от типа метки
-        float beamWidth = (mark.getType() == MarkType.DANGER) ?
-                config.getDangerBeamWidth() : config.getBeamWidth();
+        float beamScreenWidth = (mark.getType() == MarkType.DANGER) ?
+                config.getDangerBeamScreenWidth() : config.getBeamScreenWidth();
         int upRange = (mark.getType() == MarkType.DANGER) ?
                 config.getDangerUpRange() : config.getMaxY();
         int downRange = (mark.getType() == MarkType.DANGER) ?
@@ -44,6 +44,29 @@ public class BeamRenderer {
         double y1 = downRange;
         double y2 = upRange;
 
+        // Вычисляем расстояние до ближайшей точки луча
+        double dx = xCenter - cameraPos.x;
+        double dz = zCenter - cameraPos.z;
+        double horizontalDistSq = dx * dx + dz * dz;
+
+        double verticalDist;
+        if (cameraPos.y < y1) {
+            verticalDist = y1 - cameraPos.y;
+        } else if (cameraPos.y > y2) {
+            verticalDist = cameraPos.y - y2;
+        } else {
+            verticalDist = 0;
+        }
+        double distance = Math.sqrt(horizontalDistSq + verticalDist * verticalDist);
+        if (distance < 0.1) distance = 0.1; // Защита от деления на ноль
+
+        // Рассчитываем скорректированную ширину луча
+        double horizontalFovRad = Math.toRadians(fov);
+        double tanHalfFov = Math.tan(horizontalFovRad / 2.0);
+        double pixelsPerBlockAtDistance1 = screenWidth / (2.0 * tanHalfFov);
+        double adjustedBeamWidth = (beamScreenWidth * distance) / pixelsPerBlockAtDistance1;
+        double halfBeamWidth = adjustedBeamWidth / 2.0;
+
         // Направление к камере для ориентации луча
         Vec3d toCamera = new Vec3d(cameraPos.x - xCenter, 0, cameraPos.z - zCenter);
         if (toCamera.lengthSquared() < 1e-4) {
@@ -54,7 +77,7 @@ public class BeamRenderer {
 
         // Перпендикулярный вектор для ширины луча
         Vec3d up = new Vec3d(0, 1, 0);
-        Vec3d right = toCamera.crossProduct(up).normalize().multiply(beamWidth);
+        Vec3d right = toCamera.crossProduct(up).normalize().multiply(halfBeamWidth);
 
         // Центральные точки луча
         Vec3d bottomCenter = new Vec3d(xCenter, y1, zCenter);
