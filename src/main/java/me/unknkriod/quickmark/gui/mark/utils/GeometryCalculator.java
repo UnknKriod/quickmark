@@ -1,6 +1,8 @@
 package me.unknkriod.quickmark.gui.mark.utils;
 
 import me.unknkriod.quickmark.gui.mark.MarkRenderConfig;
+import me.unknkriod.quickmark.mark.Mark;
+import me.unknkriod.quickmark.mark.MarkType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
 import net.minecraft.client.render.Camera;
@@ -17,7 +19,8 @@ public class GeometryCalculator {
     }
 
     /** Проверяет взаимодействие луча взгляда с вертикальным лучом метки */
-    public BeamInteractionResult checkBeamInteraction(Vec3d cameraPos, Vec3d lookDirection, BlockPos markPos) {
+    public BeamInteractionResult checkBeamInteraction(Vec3d cameraPos, Vec3d lookDirection, Mark mark) {
+        BlockPos markPos = mark.getPosition();
         double markX = markPos.getX() + 0.5;
         double markZ = markPos.getZ() + 0.5;
 
@@ -26,7 +29,8 @@ public class GeometryCalculator {
         double dz = lookDirection.z;
 
         // Если луч почти вертикальный, пропускаем проверку
-        if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) {
+        double den = dx * dx + dz * dz;
+        if (den < 0.001) {
             return null;
         }
 
@@ -34,18 +38,29 @@ public class GeometryCalculator {
         double cz = cameraPos.z;
 
         // Находим параметр t, при котором луч взгляда ближе всего к вертикальной линии метки
-        double t = ((markX - cx) * dx + (markZ - cz) * dz) / (dx * dx + dz * dz);
+        double t = ((markX - cx) * dx + (markZ - cz) * dz) / den;
 
         if (t < 0) return null; // Пересечение позади камеры
 
         // Находим ближайшую точку на луче взгляда
-        Vec3d closestPoint = cameraPos.add(lookDirection.multiply(t));
+        double closestX = cx + t * dx;
+        double closestZ = cz + t * dz;
 
         // Расстояние от луча взгляда до центральной линии метки по горизонтали
-        double horizontalDistance = Math.sqrt(Math.pow(closestPoint.x - markX, 2) + Math.pow(closestPoint.z - markZ, 2));
+        double horizontalDistance = Math.sqrt(Math.pow(closestX - markX, 2) + Math.pow(closestZ - markZ, 2));
+
+        // Динамический расчет fadeDistance на основе визуальной ширины луча
+        MinecraftClient client = MinecraftClient.getInstance();
+        double beamDist = calculateDistanceToBeam(cameraPos, markPos);
+        float fov = client.options.getFov().getValue();
+        int screenW = client.getWindow().getWidth();
+        double halfWidth = getBeamWorldHalfWidth(beamDist, fov, screenW, mark.getType());
+
+        double fadeDistance = halfWidth;
+        double centerTolerance = halfWidth * (config.getBeamCenterTolerance() / config.getFadeDistance());
 
         // Проверяем, находится ли луч достаточно близко к центру
-        if (horizontalDistance > config.getFadeDistance()) {
+        if (horizontalDistance > fadeDistance) {
             return null; // Слишком далеко от центра
         }
 
@@ -53,9 +68,31 @@ public class GeometryCalculator {
         double yPosition = cameraPos.y;
 
         // Вычисляем прозрачность в зависимости от расстояния до центра
-        float transparency = calculateTransparencyByDistance(horizontalDistance);
+        float transparency = calculateTransparency(horizontalDistance, centerTolerance, fadeDistance);
 
         return new BeamInteractionResult(yPosition, transparency);
+    }
+
+    private float calculateTransparency(double dist, double tol, double fade) {
+        if (dist <= tol) {
+            return 1.0f;
+        } else {
+            float fadeProgress = (float) (dist - tol) / (float) (fade - tol);
+            return Math.max(config.getMinInteractionTransparency(), 1.0f - fadeProgress);
+        }
+    }
+
+    private double getBeamWorldHalfWidth(double distance, float fov, int screenWidth, MarkType type) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        double vFovRad = Math.toRadians(fov);
+        double aspect = (double) screenWidth / client.getWindow().getHeight();
+        double hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect);
+        double tanHalfHFov = Math.tan(hFovRad / 2);
+        double pixelsPerBlockAtDist1 = screenWidth / (2 * tanHalfHFov);
+
+        float beamScreenWidth = (type == MarkType.DANGER) ? config.getDangerBeamScreenWidth() : config.getBeamScreenWidth();
+        double adjustedBeamWidth = (beamScreenWidth * distance) / pixelsPerBlockAtDist1;
+        return adjustedBeamWidth / 2;
     }
 
     /** Вычисляет расстояние от камеры до ближайшей точки на вертикальном луче метки */

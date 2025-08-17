@@ -90,8 +90,7 @@ public class MarkRenderer {
         for (Mark mark : marks) {
             if (mark.isExpired()) continue;
 
-            BlockPos markBlockPos = mark.getPosition();
-            BeamInteractionResult result = GEOMETRY_CALC.checkBeamInteraction(cameraPos, lookDirection, markBlockPos);
+            BeamInteractionResult result = GEOMETRY_CALC.checkBeamInteraction(cameraPos, lookDirection, mark);
 
             if (result != null && result.getTransparency() > CONFIG.getMinInteractionTransparency()) {
                 return mark;
@@ -102,7 +101,7 @@ public class MarkRenderer {
 
     private static void renderInteractiveIcon(DrawContext context, Mark mark, Vec3d cameraPos, Vec3d lookDirection, MinecraftClient client) {
         BlockPos markBlockPos = mark.getPosition();
-        BeamInteractionResult result = GEOMETRY_CALC.checkBeamInteraction(cameraPos, lookDirection, markBlockPos);
+        BeamInteractionResult result = GEOMETRY_CALC.checkBeamInteraction(cameraPos, lookDirection, mark);
 
         if (result == null) return;
 

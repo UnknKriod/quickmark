@@ -12,7 +12,7 @@ public class MarkRenderConfig {
     // Параметры луча
     private static final float BEAM_SCREEN_WIDTH = 150.0f;
     private static final double BEAM_CENTER_TOLERANCE = 0.9;
-    private static final double FADE_DISTANCE = 1.5;
+    private static final double FADE_DISTANCE = 6.5; // Затухание прозрачности
     private static final float MIN_INTERACTION_TRANSPARENCY = 0.3f;
 
     // Параметры иконок
