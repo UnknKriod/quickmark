@@ -7,7 +7,7 @@ import me.unknkriod.quickmark.gui.TeamHudRenderer;
 import me.unknkriod.quickmark.input.MouseHandler;
 import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.network.NetworkReceiver;
-import me.unknkriod.quickmark.gui.MarkRenderer;
+import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
 import me.unknkriod.quickmark.team.TeamCommand;
 import me.unknkriod.quickmark.team.TeamManager;
 import net.fabricmc.api.ClientModInitializer;

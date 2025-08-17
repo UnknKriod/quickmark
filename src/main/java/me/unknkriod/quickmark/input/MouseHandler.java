@@ -2,7 +2,7 @@ package me.unknkriod.quickmark.input;
 
 import me.unknkriod.quickmark.mark.Mark;
 import me.unknkriod.quickmark.network.NetworkSender;
-import me.unknkriod.quickmark.gui.MarkRenderer;
+import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import org.lwjgl.glfw.GLFW;
