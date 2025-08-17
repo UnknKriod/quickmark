@@ -28,6 +28,7 @@ public class MarkRenderer {
     private static final int MAX_Y = 255;
     private static final int DOWN_RANGE = 20;
     private static Mark hoveredMark = null;
+    private static final int HOVER_THRESHOLD = 20; // Пиксели вокруг иконки для наведения
     private static long lastParticleTime = 0;
     private static final long PARTICLE_INTERVAL = 200;
     private static final float BEAM_WIDTH = 2.0f;
@@ -103,10 +104,8 @@ public class MarkRenderer {
         if (beamHoveredMark != null) {
             drawMarkIconAtBeamCenter(context, beamHoveredMark, beamHoveredPosition, cameraPos, beamHoveredTransparency);
 
-            // Устанавливаем как наведенную метку если прозрачность достаточно высокая
-            if (beamHoveredTransparency > 0.7f) {
-                hoveredMark = beamHoveredMark;
-                drawTooltipHUD(context, beamHoveredMark);
+            if (hoveredMark != null) {
+                drawTooltipHUD(context, hoveredMark);
             }
         }
 
@@ -276,6 +275,14 @@ public class MarkRenderer {
 
         // Рисуем текст с обводкой и прозрачностью
         drawTextWithOutlineAndAlpha(context, client.textRenderer, distanceText, textX, textY, textColor, outlineColor, transparency);
+
+        double mouseX = MinecraftClient.getInstance().mouse.getX() / client.getWindow().getScaleFactor();
+        double mouseY = MinecraftClient.getInstance().mouse.getY() / client.getWindow().getScaleFactor();
+
+        if (mouseX >= x - halfSize - HOVER_THRESHOLD && mouseX <= x + halfSize + HOVER_THRESHOLD &&
+                mouseY >= y - halfSize - HOVER_THRESHOLD && mouseY <= y + halfSize + HOVER_THRESHOLD) {
+            hoveredMark = mark;
+        }
     }
 
     /** Отрисовка статичной иконки метки (фиксированная позиция на экране) */
@@ -376,6 +383,16 @@ public class MarkRenderer {
         // Рисуем текст с обводкой и прозрачностью
         drawTextWithOutlineAndAlpha(context, client.textRenderer,
                 distanceText, textX, textY, textColor, outlineColor, transparency);
+
+        double mouseX = MinecraftClient.getInstance().mouse.getX() / client.getWindow().getScaleFactor();
+        double mouseY = MinecraftClient.getInstance().mouse.getY() / client.getWindow().getScaleFactor();
+
+        int halfSize = scaledIconSize / 2;
+
+        if (mouseX >= x - halfSize - HOVER_THRESHOLD && mouseX <= x + halfSize + HOVER_THRESHOLD &&
+                mouseY >= y - halfSize - HOVER_THRESHOLD && mouseY <= y + halfSize + HOVER_THRESHOLD) {
+            hoveredMark = mark;
+        }
     }
 
     /** Рассчитывает масштаб иконки в зависимости от расстояния */
