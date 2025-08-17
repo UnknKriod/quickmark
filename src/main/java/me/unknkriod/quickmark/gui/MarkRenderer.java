@@ -30,11 +30,11 @@ public class MarkRenderer {
     private static Mark hoveredMark = null;
     private static long lastParticleTime = 0;
     private static final long PARTICLE_INTERVAL = 200;
-    private static final float BEAM_WIDTH = 3.0f;
+    private static final float BEAM_WIDTH = 2.0f;
     private static final int MARK_ICON_SIZE = 16;
     private static final int MARK_DISTANCE_OFFSET = 4;
     private static final double BEAM_CENTER_TOLERANCE = 0.9; // Допустимое отклонение от центра луча для появления иконки
-    private static final double FADE_DISTANCE = 1.5; // Расстояние, на котором начинается затухание прозрачности
+    private static final double FADE_DISTANCE = 0.9; // Расстояние, на котором начинается затухание прозрачности
 
     private static final float DANGER_BEAM_WIDTH = 2.0f;
     private static final int DANGER_UP_RANGE = 150;
