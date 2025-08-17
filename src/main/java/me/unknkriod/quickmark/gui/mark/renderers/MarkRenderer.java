@@ -66,7 +66,7 @@ public class MarkRenderer {
         List<Mark> marks = MarkManager.getAllMarks();
 
         // Проверяем взаимодействие с лучами для интерактивных иконок
-        Mark beamHoveredMark = findBeamHoveredMark(marks, cameraPos, lookDirection, client);
+        Mark beamHoveredMark = findBeamHoveredMark(marks, cameraPos, lookDirection);
 
         // Рисуем интерактивную иконку, если есть взаимодействие с лучом
         if (beamHoveredMark != null) {
@@ -81,7 +81,7 @@ public class MarkRenderer {
         renderStaticIcons(context, marks, beamHoveredMark, cameraPos, client);
     }
 
-    private static Mark findBeamHoveredMark(List<Mark> marks, Vec3d cameraPos, Vec3d lookDirection, MinecraftClient client) {
+    private static Mark findBeamHoveredMark(List<Mark> marks, Vec3d cameraPos, Vec3d lookDirection) {
         for (Mark mark : marks) {
             if (mark.isExpired()) continue;
 
@@ -116,7 +116,7 @@ public class MarkRenderer {
                 .build();
 
         ICON_RENDERER.drawMarkIcon(context, iconData);
-        checkIconHover(context, iconData, client);
+        checkIconHover(iconData, client);
     }
 
     private static void renderStaticIcons(DrawContext context, List<Mark> marks, Mark beamHoveredMark, Vec3d cameraPos, MinecraftClient client) {
@@ -153,11 +153,11 @@ public class MarkRenderer {
                     .build();
 
             ICON_RENDERER.drawMarkIcon(context, iconData);
-            checkIconHover(context, iconData, client);
+            checkIconHover(iconData, client);
         }
     }
 
-    private static void checkIconHover(DrawContext context, IconRenderData iconData, MinecraftClient client) {
+    private static void checkIconHover(IconRenderData iconData, MinecraftClient client) {
         Vec3d screenPos = GEOMETRY_CALC.projectToScreen(client, iconData.getPosition());
         if (screenPos == null) return;
 
