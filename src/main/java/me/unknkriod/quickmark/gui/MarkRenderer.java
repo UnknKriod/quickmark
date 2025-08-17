@@ -91,7 +91,7 @@ public class MarkRenderer {
                 // Фиксируем позицию на высоте игрока
                 beamHoveredPosition = new Vec3d(
                         markBlockPos.getX() + 0.5,
-                        cameraPos.y, // Всегда используем высоту игрока
+                        client.player.getEyeY(),
                         markBlockPos.getZ() + 0.5
                 );
                 beamHoveredTransparency = result.transparency;
@@ -168,11 +168,6 @@ public class MarkRenderer {
         // Проверяем, находится ли луч достаточно близко к центру
         if (horizontalDistance > FADE_DISTANCE) {
             return null; // Слишком далеко от центра
-        }
-
-        // Проверяем видимость точки взаимодействия
-        if (!isPointVisible(cameraPos, closestPoint)) {
-            return null;
         }
 
         // ФИКСИРУЕМ Y ПОЗИЦИЮ НА ВЫСОТЕ ИГРОКА
@@ -311,8 +306,8 @@ public class MarkRenderer {
         int y = (int) screenPos.y;
 
         // Рассчитываем горизонтальное расстояние до луча метки
-        double markX = markBlockPos.getX() + 0.5;
-        double markZ = markBlockPos.getZ() + 0.5;
+        double markX = markPos.x;
+        double markZ = markPos.z;
         double dx = cameraPos.x - markX;
         double dz = cameraPos.z - markZ;
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
@@ -713,46 +708,45 @@ public class MarkRenderer {
         context.drawText(textRenderer, text, x, y, textColor, false);
     }
 
-    /** Улучшенная проекция на экран с постоянным размером и видимостью сквозь блоки */
     private static Vec3d projectToScreen(MinecraftClient client, Vec3d worldPos) {
-        Camera camera = client.gameRenderer.getCamera();
-        Vec3d cameraPos = camera.getPos();
-        Vec3d transformed = worldPos.subtract(cameraPos);
-
-        // Проверяем, что метка находится перед камерой
-        Vec3d forward = client.getCameraEntity().getRotationVector();
-        double dot = forward.dotProduct(transformed.normalize());
-        if (dot < 0.1) { // Метка позади камеры или слишком сбоку
-            return null;
-        }
-
         Window window = client.getWindow();
         int screenWidth = window.getScaledWidth();
         int screenHeight = window.getScaledHeight();
 
-        // Вычисляем позицию на экране
+        double vFovRad = Math.toRadians(client.options.getFov().getValue());
+        double aspect = screenWidth / (double) screenHeight;
+        double hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect);
+
+        Camera camera = client.gameRenderer.getCamera();
+        Vec3d cameraPos = camera.getPos();
+        Vec3d transformed = worldPos.subtract(cameraPos);
         double distance = transformed.length();
+        if (distance < 0.01) return null;
 
-        // Используем более точную формулу проекции
-        double fov = client.options.getFov().getValue();
-        double scale = (screenWidth / 2.0) / Math.tan(Math.toRadians(fov / 2.0));
+        Vec3d dir = transformed.normalize();
+        Vec3d forward = client.getCameraEntity().getRotationVector();
+        if (dir.dotProduct(forward) <= 0) return null; // За камерой или под углом 90+
 
-        // Получаем right и up векторы камеры
-        Vec3d right = forward.crossProduct(new Vec3d(0, 1, 0)).normalize();
-        Vec3d up = right.crossProduct(forward).normalize();
-
-        // Проецируем на плоскость экрана
-        double rightComponent = transformed.dotProduct(right);
-        double upComponent = transformed.dotProduct(up);
-
-        double x = screenWidth / 2.0 + (rightComponent * scale / distance);
-        double y = screenHeight / 2.0 - (upComponent * scale / distance);
-
-        // Проверяем границы экрана с небольшим запасом
-        if (x < -MARK_ICON_SIZE || x > screenWidth + MARK_ICON_SIZE ||
-                y < -MARK_ICON_SIZE || y > screenHeight + MARK_ICON_SIZE) {
-            return null;
+        // Горизонтальный угол
+        Vec3d forwardHor = new Vec3d(forward.x, 0, forward.z);
+        double forwardHorLen = forwardHor.length();
+        if (forwardHorLen < 0.001) {
+            return null; // Смотрим почти вертикально, проекция неоднозначна
         }
+        forwardHor = forwardHor.normalize();
+        Vec3d dirHor = new Vec3d(dir.x, 0, dir.z);
+        double dot = forwardHor.dotProduct(dirHor);
+        double det = forwardHor.x * dirHor.z - forwardHor.z * dirHor.x;
+        double angleHor = Math.atan2(det, dot);
+        if (Math.abs(angleHor) > hFovRad / 2) return null;
+
+        double x = screenWidth / 2.0 + (angleHor / (hFovRad / 2.0)) * (screenWidth / 2.0);
+
+        // Вертикальный угол (аппроксимация разницы pitch)
+        double angleVert = Math.asin(dir.y) - Math.asin(forward.y);
+        if (Math.abs(angleVert) > vFovRad / 2) return null;
+
+        double y = screenHeight / 2.0 - (angleVert / (vFovRad / 2.0)) * (screenHeight / 2.0);
 
         return new Vec3d(x, y, distance);
     }
