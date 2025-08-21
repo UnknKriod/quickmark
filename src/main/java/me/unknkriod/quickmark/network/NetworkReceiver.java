@@ -30,7 +30,11 @@ public class NetworkReceiver {
     private static final Set<String> processedAuthTokens = new HashSet<>();
     private static final Set<UUID> authorizedPlayers = new HashSet<>();
 
-    public static boolean handleChatMessage(String rawMessage, GameProfile sender) {
+    public static void handleChatMessage(String rawMessage, GameProfile sender) {
+        if (sender == null) {
+            return;
+        }
+
         Matcher matcher = MARK_PATTERN.matcher(rawMessage);
         String senderName = sender.getName();
         UUID senderId = sender.getId();
@@ -43,7 +47,7 @@ public class NetworkReceiver {
 
             // Проверяем, не обрабатывали ли этот токен
             if (processedAuthTokens.contains(token)) {
-                return false;
+                return;
             }
             processedAuthTokens.add(token);
 
@@ -55,7 +59,7 @@ public class NetworkReceiver {
             } else {
                 Quickmark.LOGGER.info("Received ACK from " + senderName + ".");
             }
-            return false;
+            return;
         }
 
         if (matcher.find()) {
@@ -66,12 +70,12 @@ public class NetworkReceiver {
             if (inviteSender != null) {
                 // Проверяем, что приглашение пришло не от нас самих
                 if (isSelf(inviteSender)) {
-                    return false;
+                    return;
                 }
 
                 TeamManager.addPendingInvitation(inviteSender, senderName);
                 SoundManager.playInviteSound();
-                return false;
+                return;
             }
 
             // Обработка ответов на приглашения
@@ -87,14 +91,14 @@ public class NetworkReceiver {
                         Quickmark.LOGGER.info(senderName + " declined your invitation");
                     }
                 }
-                return false;
+                return;
             }
 
             // Попытка обработать как удаление
             UUID removeId = MarkSerializer.deserializeRemoveCommand(encoded);
             if (removeId != null) {
                 MarkManager.removeMark(removeId);
-                return false;
+                return;
             }
 
             UUID joinedId = TeamSerializer.deserializeTeamJoinInfo(encoded);
@@ -108,7 +112,7 @@ public class NetworkReceiver {
                         joinedId,
                         playerName
                 );
-                return false;
+                return;
             }
 
             // Попытка обработать обновление состава команды
@@ -116,7 +120,7 @@ public class NetworkReceiver {
             if (teamData != null) {
                 // Устанавливаем состав команды И лидера
                 TeamManager.setTeamMembers(teamData.members, teamData.leaderId);
-                return false;
+                return;
             }
 
             // Обработка обычной метки
@@ -129,11 +133,8 @@ public class NetworkReceiver {
                     mark.markExpired();
                 }
                 MarkManager.addMark(mark);
-                return false;
             }
         }
-
-        return true;
     }
 
     public static boolean isQuickMarkMessage(String message) {
