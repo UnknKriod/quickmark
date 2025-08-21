@@ -13,6 +13,7 @@ import java.awt.Color;
 public class TooltipRenderer {
 
     private static final Color DANGER_BEAM_COLOR = new Color(181, 1, 1, 255);
+    private static final float SCALE = 0.75f;
 
     public void drawTooltip(DrawContext context, Mark mark) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -36,20 +37,20 @@ public class TooltipRenderer {
         int textWidth2 = client.textRenderer.getWidth(line2);
         int maxWidth = Math.max(textWidth1, textWidth2);
         int textHeight = client.textRenderer.fontHeight;
-        int padding = 8;
+        int padding = (int) (8 * SCALE); // Масштабируем отступы
 
         // Позиция у прицела (центр экрана)
         int centerX = window.getScaledWidth() / 2;
         int centerY = window.getScaledHeight() / 2;
 
-        // Смещение тултипа относительно прицела
-        int offsetX = 20;
-        int offsetY = -30;
+        // Смещение тултипа относительно прицела (масштабируем)
+        int offsetX = (int) (20 * SCALE);
+        int offsetY = (int) (-30 * SCALE);
 
         int boxX = centerX + offsetX;
         int boxY = centerY + offsetY;
-        int boxWidth = maxWidth + padding * 2;
-        int boxHeight = textHeight * 2 + padding * 2 + 2;
+        int boxWidth = (int) ((maxWidth + padding * 2) * SCALE);
+        int boxHeight = (int) ((textHeight * 2 + padding * 2 + 2) * SCALE);
 
         // Проверка границ экрана
         if (boxX + boxWidth > window.getScaledWidth()) {
@@ -93,6 +94,12 @@ public class TooltipRenderer {
 
         int textColor = (mark.getType() == MarkType.DANGER) ? 0xFFFF0000 : 0xFFFFFFFF;
 
+        // Применяем масштабирование к тексту
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(boxX, boxY);
+        context.getMatrices().scale(SCALE, SCALE);
+        context.getMatrices().translate(-boxX, -boxY);
+
         context.drawText(client.textRenderer,
                 line1,
                 text1X, text1Y,
@@ -102,5 +109,7 @@ public class TooltipRenderer {
                 line2,
                 text2X, text2Y,
                 textColor, false);
+
+        context.getMatrices().popMatrix();
     }
 }
