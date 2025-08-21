@@ -135,11 +135,6 @@ public class MarkRenderer {
             BlockPos markBlockPos = mark.getPosition();
             Vec3d markPos = new Vec3d(markBlockPos.getX() + 0.5, markBlockPos.getY() + 0.5, markBlockPos.getZ() + 0.5);
 
-            // Проверяем, виден ли луч метки
-            if (GEOMETRY_CALC.isBeamVisible(cameraPos, markPos)) {
-                continue;
-            }
-
             Vec3d projectedPos = new Vec3d(
                     markBlockPos.getX() + 0.5,
                     cameraPos.y,
