@@ -22,6 +22,8 @@ public class MarkRenderConfig {
     private static final float MAX_ICON_SCALE = 1.75f;
     private static final float MAX_SCALE_DISTANCE = 100.0f;
 
+    private static final float TOOLTIP_SCALE = 0.75f;
+
     // Параметры опасных меток
     private static final float DANGER_BEAM_SCREEN_WIDTH = 150.0f;
     private static final int DANGER_UP_RANGE = 150;
@@ -44,6 +46,7 @@ public class MarkRenderConfig {
 
     public int getMarkIconSize() { return MARK_ICON_SIZE; }
     public int getMarkDistanceOffset() { return MARK_DISTANCE_OFFSET; }
+    public float getTooltipScale() { return TOOLTIP_SCALE; }
     public float getMinIconScale() { return MIN_ICON_SCALE; }
     public float getMaxIconScale() { return MAX_ICON_SCALE; }
     public float getMaxScaleDistance() { return MAX_SCALE_DISTANCE; }
@@ -51,7 +54,7 @@ public class MarkRenderConfig {
     public float getDangerBeamScreenWidth() { return DANGER_BEAM_SCREEN_WIDTH; }
     public int getDangerUpRange() { return DANGER_UP_RANGE; }
     public int getDangerDownRange() { return DANGER_DOWN_RANGE; }
-    public Color getDangerBeamColor() { return DANGER_BEAM_COLOR; }
 
+    public Color getDangerBeamColor() { return DANGER_BEAM_COLOR; }
     public Color getDefaultColor() { return DEFAULT_COLOR; }
 }

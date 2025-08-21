@@ -48,7 +48,7 @@ public class IconRenderer {
         int borderAlpha = (int)(0xFF * transparency);
 
         // Размер иконки зависит от прозрачности
-        int iconSize = (int)(config.getMarkIconSize() + (transparency * 8)); // От 16 до 24 пикселей
+        int iconSize = (int)(config.getMarkIconSize() + (transparency * 4)); // От 16 до 24 пикселей
         int glowSize = iconSize + 6;
         int halfGlowSize = glowSize / 2;
         int halfSize = iconSize / 2;

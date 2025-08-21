@@ -1,5 +1,7 @@
 package me.unknkriod.quickmark.gui.mark.renderers;
 
+import me.unknkriod.quickmark.gui.mark.MarkRenderConfig;
+import me.unknkriod.quickmark.gui.mark.utils.GeometryCalculator;
 import me.unknkriod.quickmark.mark.Mark;
 import me.unknkriod.quickmark.mark.MarkType;
 import me.unknkriod.quickmark.team.TeamManager;
@@ -11,9 +13,13 @@ import net.minecraft.text.Text;
 import java.awt.Color;
 
 public class TooltipRenderer {
+    private final MarkRenderConfig config;
+    private final float TOOLTIP_SCALE;
 
-    private static final Color DANGER_BEAM_COLOR = new Color(181, 1, 1, 255);
-    private static final float SCALE = 0.75f;
+    public TooltipRenderer(MarkRenderConfig config) {
+        this.config = config;
+        this.TOOLTIP_SCALE = config.getTooltipScale();
+    }
 
     public void drawTooltip(DrawContext context, Mark mark) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -27,7 +33,7 @@ public class TooltipRenderer {
 
         if (mark.getType() == MarkType.DANGER) {
             line1 = Text.translatableWithFallback("quickmark.tooltip.danger.line1", "DANGER!");
-            markColor = DANGER_BEAM_COLOR;
+            markColor = config.getDangerBeamColor();
         } else {
             line1 = Text.translatableWithFallback("quickmark.tooltip.line1", playerName + "`s mark", playerName);
             markColor = MarkRenderer.getColorForMark(mark);
@@ -37,20 +43,20 @@ public class TooltipRenderer {
         int textWidth2 = client.textRenderer.getWidth(line2);
         int maxWidth = Math.max(textWidth1, textWidth2);
         int textHeight = client.textRenderer.fontHeight;
-        int padding = (int) (8 * SCALE); // Масштабируем отступы
+        int padding = (int) (8 * TOOLTIP_SCALE); // Масштабируем отступы
 
         // Позиция у прицела (центр экрана)
         int centerX = window.getScaledWidth() / 2;
         int centerY = window.getScaledHeight() / 2;
 
         // Смещение тултипа относительно прицела (масштабируем)
-        int offsetX = (int) (20 * SCALE);
-        int offsetY = (int) (-30 * SCALE);
+        int offsetX = (int) (20 * TOOLTIP_SCALE);
+        int offsetY = (int) (-30 * TOOLTIP_SCALE);
 
         int boxX = centerX + offsetX;
         int boxY = centerY + offsetY;
-        int boxWidth = (int) ((maxWidth + padding * 2) * SCALE);
-        int boxHeight = (int) ((textHeight * 2 + padding * 2 + 2) * SCALE);
+        int boxWidth = (int) ((maxWidth + padding * 2) * TOOLTIP_SCALE);
+        int boxHeight = (int) ((textHeight * 2 + padding * 2 + 2) * TOOLTIP_SCALE);
 
         // Проверка границ экрана
         if (boxX + boxWidth > window.getScaledWidth()) {
@@ -97,7 +103,7 @@ public class TooltipRenderer {
         // Применяем масштабирование к тексту
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(boxX, boxY);
-        context.getMatrices().scale(SCALE, SCALE);
+        context.getMatrices().scale(TOOLTIP_SCALE, TOOLTIP_SCALE);
         context.getMatrices().translate(-boxX, -boxY);
 
         context.drawText(client.textRenderer,

@@ -25,7 +25,7 @@ public class MarkRenderer {
     private static final MarkRenderConfig CONFIG = new MarkRenderConfig();
     private static final BeamRenderer BEAM_RENDERER = new BeamRenderer(CONFIG);
     private static final IconRenderer ICON_RENDERER = new IconRenderer(CONFIG);
-    private static final TooltipRenderer TOOLTIP_RENDERER = new TooltipRenderer();
+    private static final TooltipRenderer TOOLTIP_RENDERER = new TooltipRenderer(CONFIG);
     private static final GeometryCalculator GEOMETRY_CALC = new GeometryCalculator(CONFIG);
 
     private static Mark hoveredMark = null;
