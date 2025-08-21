@@ -66,6 +66,9 @@ public class MarkRenderer {
 
         if (client.player == null || client.world == null) return;
 
+        // Принудительно обновляем состояние мыши
+        client.mouse.tick();
+
         Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
         Vec3d lookDirection = client.getCameraEntity().getRotationVector();
         List<Mark> marks = MarkManager.getAllMarks();
