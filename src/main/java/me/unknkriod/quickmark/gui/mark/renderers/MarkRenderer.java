@@ -66,9 +66,6 @@ public class MarkRenderer {
 
         if (client.player == null || client.world == null) return;
 
-        // Принудительно обновляем состояние мыши
-        client.mouse.tick();
-
         Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
         Vec3d lookDirection = client.getCameraEntity().getRotationVector();
         List<Mark> marks = MarkManager.getAllMarks();
@@ -162,14 +159,13 @@ public class MarkRenderer {
     private static void checkIconHover(IconRenderData iconData, MinecraftClient client) {
         Vec3d screenPos = GEOMETRY_CALC.projectToScreen(client, iconData.getPosition());
         if (screenPos == null) return;
-
         int x = (int) screenPos.x;
         int y = (int) screenPos.y;
         int iconSize = (int) (CONFIG.getMarkIconSize() * iconData.getScale());
         int halfSize = iconSize / 2;
 
-        double mouseX = client.mouse.getX() / client.getWindow().getScaleFactor();
-        double mouseY = client.mouse.getY() / client.getWindow().getScaleFactor();
+        double mouseX = client.getWindow().getScaledWidth() / 2.0;
+        double mouseY = client.getWindow().getScaledHeight() / 2.0;
 
         int hoverThreshold = CONFIG.getHoverThreshold();
         if (mouseX >= x - halfSize - hoverThreshold && mouseX <= x + halfSize + hoverThreshold &&

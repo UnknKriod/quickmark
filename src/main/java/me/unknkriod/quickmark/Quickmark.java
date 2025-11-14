@@ -8,6 +8,7 @@ import me.unknkriod.quickmark.input.MouseHandler;
 import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.network.NetworkReceiver;
 import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
+import me.unknkriod.quickmark.network.NetworkSender;
 import me.unknkriod.quickmark.team.TeamCommand;
 import me.unknkriod.quickmark.team.TeamManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -86,8 +87,10 @@ public class Quickmark implements ClientModInitializer {
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((clientPlayNetworkHandler, client) -> {
-            if (client.player != null)
+            if (client.player != null) {
                 TeamManager.removePlayer(client.player.getUuid());
+                NetworkSender.sendTeamUpdate();
+            }
 
             MarkManager.clearAllMarks();
             NetworkReceiver.clearAuthorizedPlayers();

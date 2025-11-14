@@ -83,7 +83,6 @@ public class TeamManager {
                 leaderId = null;
             }
         }
-        NetworkSender.sendTeamUpdate();
     }
 
     // Устанавливает лидера без отправки обновления
