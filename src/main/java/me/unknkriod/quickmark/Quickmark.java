@@ -9,6 +9,7 @@ import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.network.NetworkReceiver;
 import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
 import me.unknkriod.quickmark.network.NetworkSender;
+import me.unknkriod.quickmark.network.QuickmarkPayload;
 import me.unknkriod.quickmark.team.TeamCommand;
 import me.unknkriod.quickmark.team.TeamManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -16,8 +17,10 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -33,6 +36,8 @@ public class Quickmark implements ClientModInitializer {
     public static final String MOD_ID = "quickmark";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     private static KeyBinding acceptInvitationKey;
+    private static int pluginCheckTimer = 0;
+    private static boolean waitingForPluginCheck = false;
 
     public static KeyBinding getAcceptInvitationKey() {
         return acceptInvitationKey;
@@ -41,6 +46,8 @@ public class Quickmark implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("QuickMark mod initialized!");
+
+        registerPacketTypes();
 
         // Sounds
         Registry.register(Registries.SOUND_EVENT, Identifier.of(MOD_ID, "normal_ping"),
@@ -79,14 +86,40 @@ public class Quickmark implements ClientModInitializer {
         });
 
 
-        // Обработка кликов по приглашениям
+        // Обработка кликов по приглашениям и проверка плагина
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
                 TeamManager.updateTeamHealth();
             }
+
+            // Обработка таймера проверки плагина
+            if (waitingForPluginCheck) {
+                pluginCheckTimer--;
+                if (pluginCheckTimer <= 0) {
+                    waitingForPluginCheck = false;
+                    LOGGER.info("Checking for server plugin...");
+                    NetworkSender.checkServerPlugin();
+                }
+            }
+        });
+
+        ClientPlayConnectionEvents.JOIN.register((clientPlayNetworkHandler, client, minecraftClient) -> {
+            MarkManager.clearAllMarks();
+            NetworkReceiver.clearAuthorizedPlayers();
+            TeamManager.clearTeam();
+            TeamManager.clearPendingInvitations();
+
+            NetworkSender.setServerHasPlugin(false);
+
+            // Таймер на 2 секунды (40 тиков) для проверки плагина
+            waitingForPluginCheck = true;
+            pluginCheckTimer = 40;
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((clientPlayNetworkHandler, client) -> {
+            waitingForPluginCheck = false;
+            pluginCheckTimer = 0;
+
             if (client.player != null) {
                 TeamManager.removePlayer(client.player.getUuid());
                 NetworkSender.sendTeamUpdate();
@@ -96,7 +129,19 @@ public class Quickmark implements ClientModInitializer {
             NetworkReceiver.clearAuthorizedPlayers();
             TeamManager.clearTeam();
             TeamManager.clearPendingInvitations();
+
+            NetworkSender.setServerHasPlugin(false);
         });
+    }
+
+    private void registerPacketTypes() {
+        PayloadTypeRegistry.playS2C().register(QuickmarkPayload.ID, QuickmarkPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(QuickmarkPayload.ID, QuickmarkPayload.CODEC);
+
+        ClientPlayNetworking.registerGlobalReceiver(QuickmarkPayload.ID,
+                (payload, context) -> {
+                    NetworkReceiver.handlePluginMessage(payload.data());
+                });
     }
 
     public static void log(String message) {

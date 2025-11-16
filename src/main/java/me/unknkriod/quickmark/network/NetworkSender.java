@@ -8,14 +8,46 @@ import me.unknkriod.quickmark.serializers.MarkSerializer;
 import me.unknkriod.quickmark.team.TeamManager;
 import me.unknkriod.quickmark.team.TeamPlayer;
 import me.unknkriod.quickmark.serializers.TeamSerializer;
+import me.unknkriod.quickmark.utils.Base85Encoder;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientCommandSource;
 import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.network.PacketByteBuf;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.util.Identifier;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
 public class NetworkSender {
+    private static final Identifier CHANNEL = Identifier.of("quickmark", "main");
+    private static boolean serverHasPlugin = false;
+
+    public static void setServerHasPlugin(boolean hasPlugin) {
+        serverHasPlugin = hasPlugin;
+        Quickmark.log("Server plugin status: " + (hasPlugin ? "DETECTED" : "NOT DETECTED"));
+    }
+
+    public static boolean hasServerPlugin() {
+        return serverHasPlugin;
+    }
+
+    public static void checkServerPlugin() {
+        if (ClientPlayNetworking.canSend(CHANNEL)) {
+            try {
+                PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+                buf.writeBytes("PING".getBytes(StandardCharsets.UTF_8));
+                ClientPlayNetworking.send(new QuickmarkPayload(buf));
+            } catch (Exception e) {
+                Quickmark.LOGGER.warn("Failed to send plugin check: " + e.getMessage());
+            }
+        } else {
+            Quickmark.LOGGER.warn("Plugin channel not available, server likely doesn't have plugin");
+        }
+    }
+
     public static void sendPing(UUID targetPlayer) {
         String name = TeamManager.getPlayerName(targetPlayer);
         if (name == null) return;
@@ -56,13 +88,18 @@ public class NetworkSender {
 
         String encoded = MarkSerializer.serializeMark(mark);
 
-        // Отправляем всем участникам команды
-        for (TeamPlayer member : TeamManager.getTeamMembers()) {
-            // Не отправляем себе
-            if (member.getPlayerId().equals(mark.getPlayerId())) continue;
-            if (member.getPlayerId().equals(client.player.getUuid())) continue;
+        if (serverHasPlugin) {
+            PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+            buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+            ClientPlayNetworking.send(new QuickmarkPayload(buf));
+        } else {
+            // Fallback to chat
+            for (TeamPlayer member : TeamManager.getTeamMembers()) {
+                if (member.getPlayerId().equals(mark.getPlayerId())) continue;
+                if (member.getPlayerId().equals(client.player.getUuid())) continue;
 
-            sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+                sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+            }
         }
     }
 
@@ -72,11 +109,16 @@ public class NetworkSender {
 
         String encoded = MarkSerializer.serializeRemoveCommand(markId);
 
-        // Отправляем всем участникам команды
-        for (TeamPlayer member : TeamManager.getTeamMembers()) {
-            if (member.getPlayerId().equals(client.player.getUuid())) continue;
-
-            sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+        if (serverHasPlugin) {
+            PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+            buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+            ClientPlayNetworking.send(new QuickmarkPayload(buf));
+        } else {
+            // Fallback to chat
+            for (TeamPlayer member : TeamManager.getTeamMembers()) {
+                if (member.getPlayerId().equals(client.player.getUuid())) continue;
+                sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+            }
         }
     }
 
@@ -84,11 +126,23 @@ public class NetworkSender {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        String encoded = TeamSerializer.serializeInvitation(client.player.getUuid());
         String targetName = TeamManager.getPlayerName(targetPlayerId);
 
         if (targetName != null) {
-            sendPrivateMessage(targetName, "quickmark://" + encoded);
+            if (serverHasPlugin) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                out.write('I');
+                out.writeBytes(Base85Encoder.uuidToBytes(targetPlayerId));
+                out.writeBytes(Base85Encoder.uuidToBytes(client.player.getUuid()));
+                String encoded = Base85Encoder.encode(out.toByteArray());
+
+                PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+                buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+                ClientPlayNetworking.send(new QuickmarkPayload(buf));
+            } else {
+                String encoded = TeamSerializer.serializeInvitation(client.player.getUuid());
+                sendPrivateMessage(targetName, "quickmark://" + encoded);
+            }
         } else {
             Quickmark.LOGGER.warn("Failed to get name for player ID: {}", targetPlayerId);
         }
@@ -96,14 +150,26 @@ public class NetworkSender {
 
     public static void sendInvitationResponse(UUID targetPlayerId, boolean accepted) {
         MinecraftClient client = MinecraftClient.getInstance();
-
         if (client.player == null) return;
 
-        String encoded = TeamSerializer.serializeInvitationResponse(client.player.getUuid(), accepted);
         String targetName = TeamManager.getPlayerName(targetPlayerId);
 
         if (targetName != null) {
-            sendPrivateMessage(targetName, "quickmark://" + encoded);
+            if (serverHasPlugin) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                out.write('R');
+                out.writeBytes(Base85Encoder.uuidToBytes(targetPlayerId));
+                out.writeBytes(Base85Encoder.uuidToBytes(client.player.getUuid()));
+                out.write(accepted ? 1 : 0);
+                String encoded = Base85Encoder.encode(out.toByteArray());
+
+                PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+                buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+                ClientPlayNetworking.send(new QuickmarkPayload(buf));
+            } else {
+                String encoded = TeamSerializer.serializeInvitationResponse(client.player.getUuid(), accepted);
+                sendPrivateMessage(targetName, "quickmark://" + encoded);
+            }
         } else {
             Quickmark.LOGGER.warn("Failed to get name for player ID: {}", targetPlayerId);
         }
@@ -114,8 +180,6 @@ public class NetworkSender {
         if (client.player == null) return;
 
         UUID currentLeader = TeamManager.getLeaderId();
-
-        // Если лидер не назначен, не отправляем обновление
         if (currentLeader == null) {
             Quickmark.LOGGER.warn("Cannot send team update: no leader assigned");
             return;
@@ -126,22 +190,32 @@ public class NetworkSender {
                 currentLeader
         );
 
-        for (TeamPlayer member : TeamManager.getTeamMembers()) {
-            sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+        if (serverHasPlugin) {
+            PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+            buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+            ClientPlayNetworking.send(new QuickmarkPayload(buf));
+        } else {
+            for (TeamPlayer member : TeamManager.getTeamMembers()) {
+                sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+            }
         }
     }
 
     public static void sendTeamJoinInfo(UUID joinedPlayerId) {
         MinecraftClient client = MinecraftClient.getInstance();
-
         if (client.player == null || client.world == null) return;
 
         String encoded = TeamSerializer.serializeTeamJoinInfo(joinedPlayerId);
 
-        // Рассылаем всем участникам, кроме себя
-        for (TeamPlayer member : TeamManager.getTeamMembers()) {
-            if (member.getPlayerId().equals(joinedPlayerId)) continue;
-            sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+        if (serverHasPlugin) {
+            PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
+            buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
+            ClientPlayNetworking.send(new QuickmarkPayload(buf));
+        } else {
+            for (TeamPlayer member : TeamManager.getTeamMembers()) {
+                if (member.getPlayerId().equals(joinedPlayerId)) continue;
+                sendPrivateMessage(member.getPlayerName(), "quickmark://" + encoded);
+            }
         }
     }
 
@@ -158,7 +232,6 @@ public class NetworkSender {
                 client.player.networkHandler.getCommandSource()
         );
 
-        // проверяем наличие
         if (commands != null) {
             if (commands.keySet().stream().anyMatch(node -> node.getName().equals("minecraft:tell"))) {
                 return "minecraft:tell";
@@ -168,7 +241,6 @@ public class NetworkSender {
             }
         }
 
-        // если не нашли — используем fallback
         return "tell";
     }
 
@@ -197,6 +269,6 @@ public class NetworkSender {
                 return entry.getProfile();
             }
         }
-        return null; // если не нашли
+        return null;
     }
 }

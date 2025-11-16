@@ -134,7 +134,7 @@ public class MarkRenderer {
 
             Vec3d projectedPos = new Vec3d(
                     markBlockPos.getX() + 0.5,
-                    cameraPos.y,
+                    client.player.getEyeY(),
                     markBlockPos.getZ() + 0.5
             );
 
