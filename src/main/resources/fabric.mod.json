@@ -15,11 +15,13 @@
   "contact": {},
   "license": "MIT",
   "icon": "assets/quickmark/logo.png",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
-    "client": [
-      "me.unknkriod.quickmark.Quickmark"
-    ]
+    "client": ["me.unknkriod.quickmark.Quickmark"],
+    "server": ["me.unknkriod.quickmark.QuickmarkServer"]
+  },
+  "custom": {
+    "fabric-networking-api-v1:optional": true
   },
   "mixins": [
     {

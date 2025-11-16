@@ -197,7 +197,7 @@ public class TeamManager {
 
         pendingInvitations.put(targetPlayerId, player.getName().getLiteralString());
         NetworkSender.sendInvitation(targetPlayerId);
-        Quickmark.log("Invited: " + player.getName().getLiteralString());
+        Quickmark.log("Invited: " + TeamManager.getPlayerName(targetPlayerId));
     }
 
     public static void addPendingInvitation(UUID senderId, String senderName) {

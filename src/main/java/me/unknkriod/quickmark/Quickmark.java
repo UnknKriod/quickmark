@@ -6,10 +6,8 @@ import me.unknkriod.quickmark.gui.overlay.SuccessOverlayRenderer;
 import me.unknkriod.quickmark.gui.TeamHudRenderer;
 import me.unknkriod.quickmark.input.MouseHandler;
 import me.unknkriod.quickmark.mark.MarkManager;
-import me.unknkriod.quickmark.network.NetworkReceiver;
+import me.unknkriod.quickmark.network.*;
 import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
-import me.unknkriod.quickmark.network.NetworkSender;
-import me.unknkriod.quickmark.network.QuickmarkPayload;
 import me.unknkriod.quickmark.team.TeamCommand;
 import me.unknkriod.quickmark.team.TeamManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -20,6 +18,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
@@ -45,7 +44,14 @@ public class Quickmark implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        LOGGER.info("QuickMark mod initialized!");
+        log("Quickmark initialing started");
+
+        // Initialize server-side networking for integrated servers (e.g., LAN)
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            log("Initializing Quickmark server networking for integrated server");
+            ServerNetworking.initialize();
+            ServerNetworking.registerTickHandler();
+        });
 
         registerPacketTypes();
 
@@ -132,11 +138,12 @@ public class Quickmark implements ClientModInitializer {
 
             NetworkSender.setServerHasPlugin(false);
         });
+
+        log("Quickmark initialized");
     }
 
     private void registerPacketTypes() {
-        PayloadTypeRegistry.playS2C().register(QuickmarkPayload.ID, QuickmarkPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(QuickmarkPayload.ID, QuickmarkPayload.CODEC);
+        NetworkingInit.registerPayloads();
 
         ClientPlayNetworking.registerGlobalReceiver(QuickmarkPayload.ID,
                 (payload, context) -> {
