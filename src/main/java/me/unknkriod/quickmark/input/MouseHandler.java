@@ -98,8 +98,13 @@ public class MouseHandler {
         if (MarkRenderer.isHovered()) {
             Mark mark = MarkRenderer.getHoveredMark();
             if (mark != null) {
-                MarkManager.removeMark(mark.getId());
-                NetworkSender.sendRemoveCommand(mark.getId());
+                boolean isOwner = client.player != null && client.player.getUuid().equals(mark.getPlayerId());
+
+                if (isOwner) {
+                    MarkManager.removeMark(mark.getId());
+                    NetworkSender.sendRemoveCommand(mark.getId());
+                }
+
                 return;
             }
         }

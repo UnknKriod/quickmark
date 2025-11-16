@@ -39,6 +39,8 @@ public class TooltipRenderer {
             markColor = MarkRenderer.getColorForMark(mark);
         }
 
+        boolean isOwner = client.player != null && client.player.getUuid().equals(mark.getPlayerId());
+
         int textWidth1 = client.textRenderer.getWidth(line1);
         int textWidth2 = client.textRenderer.getWidth(line2);
         int maxWidth = Math.max(textWidth1, textWidth2);
@@ -56,7 +58,8 @@ public class TooltipRenderer {
         int boxX = centerX + offsetX;
         int boxY = centerY + offsetY;
         int boxWidth = (int) ((maxWidth + padding * 2) * TOOLTIP_SCALE);
-        int boxHeight = (int) ((textHeight * 2 + padding * 2 + 2) * TOOLTIP_SCALE);
+        int lines = isOwner ? 2 : 1;
+        int boxHeight = (int) ((textHeight * lines + padding * 2 + (isOwner ? 2 : 0)) * TOOLTIP_SCALE);
 
         // Проверка границ экрана
         if (boxX + boxWidth > window.getScaledWidth()) {
@@ -94,9 +97,12 @@ public class TooltipRenderer {
 
         // Текст с обводкой для лучшей читаемости
         int text1X = boxX + padding + (maxWidth - textWidth1) / 2;
-        int text1Y = boxY + padding;
+        int text1Y = isOwner
+                ? boxY + padding
+                : boxY + (boxHeight - textHeight) / 2;
+
         int text2X = boxX + padding + (maxWidth - textWidth2) / 2;
-        int text2Y = boxY + padding + textHeight + 2;
+        int text2Y = text1Y + textHeight + 2;
 
         int textColor = (mark.getType() == MarkType.DANGER) ? 0xFFFF0000 : 0xFFFFFFFF;
 
@@ -111,10 +117,12 @@ public class TooltipRenderer {
                 text1X, text1Y,
                 textColor, false);
 
-        context.drawText(client.textRenderer,
-                line2,
-                text2X, text2Y,
-                textColor, false);
+        if (isOwner) {
+            context.drawText(client.textRenderer,
+                    line2,
+                    text2X, text2Y,
+                    textColor, false);
+        }
 
         context.getMatrices().popMatrix();
     }
