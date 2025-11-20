@@ -6,6 +6,9 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
+/**
+ * Manages playback of custom sounds for marks and invitations.
+ */
 public class SoundManager {
     private static final Identifier NORMAL_PING_SOUND = Identifier.of("quickmark:normal_ping");
     private static final Identifier DANGER_PING_SOUND = Identifier.of("quickmark:danger_ping");
@@ -19,6 +22,9 @@ public class SoundManager {
         playPositionedSound(DANGER_PING_SOUND, pos);
     }
 
+    /**
+     * Plays the invitation sound without positioning (master volume, no location).
+     */
     public static void playInviteSound() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null) {
@@ -29,6 +35,9 @@ public class SoundManager {
         }
     }
 
+    /**
+     * Plays a positioned sound at the given block position.
+     */
     private static void playPositionedSound(Identifier soundId, BlockPos pos) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && client.world != null) {

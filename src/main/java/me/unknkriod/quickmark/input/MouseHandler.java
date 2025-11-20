@@ -9,15 +9,19 @@ import org.lwjgl.glfw.GLFW;
 import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.mark.MarkType;
 
+/**
+ * Handles middle mouse button input for creating normal/danger marks via single/double-click detection.
+ * Also handles mark removal on hover-click if owned by the player.
+ */
 public class MouseHandler {
     private static long lastPressTime = 0;
-    private static final long DOUBLE_CLICK_INTERVAL = 250; // Интервал для двойного клика
-    private static final long MIN_MARK_INTERVAL = 100; // Минимальный интервал между метками
+    private static final long DOUBLE_CLICK_INTERVAL = 250; // ms for double-click detection
+    private static final long MIN_MARK_INTERVAL = 100; // ms cooldown between marks
     private static boolean waitingForSecondClick = false;
     private static MarkType pendingMarkType = null;
     private static boolean middlePressed = false;
     private static boolean dangerMarkTriggered = false;
-    private static long lastMarkTime = 0; // Время последней установленной метки
+    private static long lastMarkTime = 0; // Timestamp of last mark creation
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -26,24 +30,23 @@ public class MouseHandler {
             long currentTime = System.currentTimeMillis();
             boolean currentlyPressed = GLFW.glfwGetMouseButton(MinecraftClient.getInstance().getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS;
 
-            // Защита от спама - пропускаем обработку если не прошло достаточно времени
+            // Spam protection: skip if too soon after last mark
             if (currentTime - lastMarkTime < MIN_MARK_INTERVAL) {
-                // Если кнопка отпущена - обновляем состояние нажатия
                 if (!currentlyPressed && middlePressed) {
                     middlePressed = false;
                 }
                 return;
             }
 
-            // Обработка нажатия кнопки
+            // Detect button press
             if (currentlyPressed && !middlePressed) {
-                // Первое нажатие
+                // First press
                 if (lastPressTime == 0) {
                     lastPressTime = currentTime;
                     waitingForSecondClick = true;
                     pendingMarkType = MarkType.NORMAL;
                 }
-                // Второе нажатие в пределах интервала
+                // Second press within interval -> danger mark
                 else if (waitingForSecondClick && currentTime - lastPressTime <= DOUBLE_CLICK_INTERVAL) {
                     pendingMarkType = MarkType.DANGER;
                     dangerMarkTriggered = true;
@@ -52,21 +55,19 @@ public class MouseHandler {
                 }
             }
 
-            // Обработка отпускания кнопки
+            // Detect button release
             if (!currentlyPressed && middlePressed) {
-                // Если было одиночное нажатие и не было двойного клика
+                // Single click (no double) -> normal mark after timeout
                 if (waitingForSecondClick && !dangerMarkTriggered) {
-                    // Проверяем, не истек ли таймаут ожидания второго клика
                     if (currentTime - lastPressTime > DOUBLE_CLICK_INTERVAL) {
                         createMark(MarkType.NORMAL);
                     } else {
-                        // Устанавливаем флаг, что нужно создать метку после таймаута
                         pendingMarkType = MarkType.NORMAL;
                     }
                 }
             }
 
-            // Обработка таймаута для одиночного клика
+            // Timeout for single click
             if (waitingForSecondClick && !dangerMarkTriggered &&
                     currentTime - lastPressTime > DOUBLE_CLICK_INTERVAL) {
 
@@ -91,14 +92,13 @@ public class MouseHandler {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        // Запоминаем время создания метки для защиты от спама
         lastMarkTime = System.currentTimeMillis();
 
-        // Проверка на удаление при наведении
+        // Check for hovered mark removal
         if (MarkRenderer.isHovered()) {
             Mark mark = MarkRenderer.getHoveredMark();
             if (mark != null) {
-                boolean isOwner = client.player != null && client.player.getUuid().equals(mark.getPlayerId());
+                boolean isOwner = client.player.getUuid().equals(mark.getPlayerId());
 
                 if (isOwner) {
                     MarkManager.removeMark(mark.getId());

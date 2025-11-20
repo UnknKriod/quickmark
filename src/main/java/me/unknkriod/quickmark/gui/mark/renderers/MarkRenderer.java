@@ -31,7 +31,10 @@ public class MarkRenderer {
     private static Mark hoveredMark = null;
     private static long lastParticleTime = 0;
 
-    /** Рендер 3D — вызывается из WorldRenderEvents */
+    /**
+     * Renders 3D elements (beams) in the world
+     * Called from WorldRenderEvents
+     */
     public static void render3D(MatrixStack matrices, VertexConsumerProvider vertexConsumers) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
@@ -59,7 +62,10 @@ public class MarkRenderer {
         matrices.pop();
     }
 
-    /** Рендер HUD — вызывается из HudRenderCallback */
+    /**
+     * Renders HUD elements (icons and tooltips)
+     * Called from HudRenderCallback
+     */
     public static void renderHUD(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
         hoveredMark = null;
@@ -70,10 +76,9 @@ public class MarkRenderer {
         Vec3d lookDirection = client.getCameraEntity().getRotationVector();
         List<Mark> marks = MarkManager.getAllMarks();
 
-        // Проверяем взаимодействие с лучами для интерактивных иконок
+        // Find mark currently being looked at
         Mark beamHoveredMark = findBeamHoveredMark(marks, cameraPos, lookDirection);
 
-        // Рисуем интерактивную иконку, если есть взаимодействие с лучом
         if (beamHoveredMark != null) {
             renderInteractiveIcon(context, beamHoveredMark, cameraPos, lookDirection, client);
 
@@ -82,10 +87,12 @@ public class MarkRenderer {
             }
         }
 
-        // Рисуем статичные иконки для остальных меток
         renderStaticIcons(context, marks, beamHoveredMark, cameraPos, client);
     }
 
+    /**
+     * Finds which mark beam player is currently looking at
+     */
     private static Mark findBeamHoveredMark(List<Mark> marks, Vec3d cameraPos, Vec3d lookDirection) {
         for (Mark mark : marks) {
             if (mark.isExpired()) continue;
@@ -99,6 +106,9 @@ public class MarkRenderer {
         return null;
     }
 
+    /**
+     * Renders interactive icon for mark being looked at
+     */
     private static void renderInteractiveIcon(DrawContext context, Mark mark, Vec3d cameraPos, Vec3d lookDirection, MinecraftClient client) {
         BlockPos markBlockPos = mark.getPosition();
         BeamInteractionResult result = GEOMETRY_CALC.checkBeamInteraction(cameraPos, lookDirection, mark);
@@ -123,6 +133,9 @@ public class MarkRenderer {
         checkIconHover(iconData, client);
     }
 
+    /**
+     * Renders static icons for all other marks not being looked at
+     */
     private static void renderStaticIcons(DrawContext context, List<Mark> marks, Mark beamHoveredMark, Vec3d cameraPos, MinecraftClient client) {
         for (Mark mark : marks) {
             if (mark.isExpired() || mark.equals(beamHoveredMark)) {
@@ -156,6 +169,9 @@ public class MarkRenderer {
         }
     }
 
+    /**
+     * Checks if mouse is hovering over an icon for tooltip display
+     */
     private static void checkIconHover(IconRenderData iconData, MinecraftClient client) {
         Vec3d screenPos = GEOMETRY_CALC.projectToScreen(client, iconData.getPosition());
         if (screenPos == null) return;
@@ -174,6 +190,9 @@ public class MarkRenderer {
         }
     }
 
+    /**
+     * Spawns particles for danger-type marks
+     */
     private static void spawnDangerParticles(BlockPos pos) {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastParticleTime < CONFIG.getParticleInterval()) return;
@@ -195,6 +214,9 @@ public class MarkRenderer {
         }
     }
 
+    /**
+     * Gets color for mark based on player's team position
+     */
     public static Color getColorForMark(Mark mark) {
         int position = TeamManager.getPlayerPosition(mark.getPlayerId());
         if (position == -1) {

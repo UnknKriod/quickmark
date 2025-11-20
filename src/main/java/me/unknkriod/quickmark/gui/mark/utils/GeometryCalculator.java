@@ -18,7 +18,10 @@ public class GeometryCalculator {
         this.config = config;
     }
 
-    /** Проверяет взаимодействие луча взгляда с вертикальным лучом метки */
+    /**
+     * Checks if player's gaze ray interacts with a vertical mark beam
+     * Uses line-to-line distance calculation for beam interaction detection
+     */
     public BeamInteractionResult checkBeamInteraction(Vec3d cameraPos, Vec3d lookDirection, Mark mark) {
         BlockPos markPos = mark.getPosition();
         double markX = markPos.getX() + 0.5;
@@ -28,7 +31,7 @@ public class GeometryCalculator {
         double dy = lookDirection.y;
         double dz = lookDirection.z;
 
-        // Если луч почти вертикальный, пропускаем проверку
+        // Skip if ray is nearly vertical (avoid division by zero)
         double den = dx * dx + dz * dz;
         if (den < 0.001) {
             return null;
@@ -37,19 +40,18 @@ public class GeometryCalculator {
         double cx = cameraPos.x;
         double cz = cameraPos.z;
 
-        // Находим параметр t, при котором луч взгляда ближе всего к вертикальной линии метки
+        // Find parameter t where gaze ray is closest to mark's vertical line
         double t = ((markX - cx) * dx + (markZ - cz) * dz) / den;
 
-        if (t < 0) return null; // Пересечение позади камеры
+        if (t < 0) return null; // Intersection behind camera
 
-        // Находим ближайшую точку на луче взгляда
+        // Find closest point on gaze ray to mark center
         double closestX = cx + t * dx;
         double closestZ = cz + t * dz;
 
-        // Расстояние от луча взгляда до центральной линии метки по горизонтали
         double horizontalDistance = Math.sqrt(Math.pow(closestX - markX, 2) + Math.pow(closestZ - markZ, 2));
 
-        // Динамический расчет fadeDistance на основе визуальной ширины луча
+        // Calculate dynamic fade distance based on beam's visual width
         MinecraftClient client = MinecraftClient.getInstance();
         double beamDist = calculateDistanceToBeam(cameraPos, markPos);
         float fov = client.options.getFov().getValue();
@@ -59,20 +61,22 @@ public class GeometryCalculator {
         double fadeDistance = halfWidth;
         double centerTolerance = halfWidth * (config.getBeamCenterTolerance() / config.getFadeDistance());
 
-        // Проверяем, находится ли луч достаточно близко к центру
         if (horizontalDistance > fadeDistance) {
-            return null; // Слишком далеко от центра
+            return null; // Too far from beam center
         }
 
-        // Фиксируем Y позицию на высоте игрока
+        // Use player's eye height for interaction
         double yPosition = cameraPos.y;
 
-        // Вычисляем прозрачность в зависимости от расстояния до центра
         float transparency = calculateTransparency(horizontalDistance, centerTolerance, fadeDistance);
 
         return new BeamInteractionResult(yPosition, transparency);
     }
 
+    /**
+     * Calculates transparency based on distance from beam center
+     * Full opacity in center, fading out towards edges
+     */
     private float calculateTransparency(double dist, double tol, double fade) {
         if (dist <= tol) {
             return 1.0f;
@@ -82,6 +86,10 @@ public class GeometryCalculator {
         }
     }
 
+    /**
+     * Converts screen-space beam width to world-space units
+     * Accounts for FOV and distance to maintain consistent visual width
+     */
     private double getBeamWorldHalfWidth(double distance, float fov, int screenWidth, MarkType type) {
         MinecraftClient client = MinecraftClient.getInstance();
         double vFovRad = Math.toRadians(fov);
@@ -95,28 +103,26 @@ public class GeometryCalculator {
         return adjustedBeamWidth / 2;
     }
 
-    /** Вычисляет расстояние от камеры до ближайшей точки на вертикальном луче метки */
+    /**
+     * Calculates 3D distance from camera to the nearest point on mark beam
+     * Considers both horizontal distance and vertical alignment
+     */
     public double calculateDistanceToBeam(Vec3d cameraPos, BlockPos markPos) {
         double markX = markPos.getX() + 0.5;
         double markZ = markPos.getZ() + 0.5;
 
-        // Горизонтальное расстояние до центральной линии луча
         double horizontalDistance = Math.sqrt(Math.pow(cameraPos.x - markX, 2) + Math.pow(cameraPos.z - markZ, 2));
 
-        // Y координата камеры
         double cameraY = cameraPos.y;
-
-        // Ближайшая Y точка на луче (ограничиваем диапазоном луча)
         double closestY = Math.max(config.getDownRange(), Math.min(config.getMaxY(), cameraY));
 
-        // Вертикальное расстояние до ближайшей точки на луче
         double verticalDistance = Math.abs(cameraY - closestY);
-
-        // Общее расстояние до луча
         return Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance);
     }
 
-    /** Рассчитывает прозрачность для статичных иконок */
+    /**
+     * Calculates transparency for static icons based on horizontal distance
+     */
     public float calculateStaticTransparency(Vec3d cameraPos, Vec3d markPos) {
         double markX = markPos.x;
         double markZ = markPos.z;
@@ -127,19 +133,19 @@ public class GeometryCalculator {
         return calculateTransparencyByDistance(horizontalDistance);
     }
 
-    /** Рассчитывает масштаб иконки в зависимости от расстояния */
+    /**
+     * Calculates icon scale based on distance with linear interpolation
+     * Icons get smaller as distance increases
+     */
     public float calculateIconScale(double distance) {
-        // Ограничиваем расстояние
         distance = Math.min(distance, config.getMaxScaleDistance());
-
-        // Рассчитываем коэффициент интерполяции (0 на близком расстоянии, 1 на максимальном)
         float factor = (float) (distance / config.getMaxScaleDistance());
-
-        // Линейная интерполяция между MAX_SCALE и MIN_SCALE
         return config.getMaxIconScale() - factor * (config.getMaxIconScale() - config.getMinIconScale());
     }
 
-    /** Проверяет, виден ли луч метки (хотя бы частично) */
+    /**
+     * Checks if any part of the beam is visible by testing multiple points along its height
+     */
     public boolean isBeamVisible(Vec3d cameraPos, Vec3d markPos) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null) return false;
@@ -147,14 +153,11 @@ public class GeometryCalculator {
         double markX = markPos.x;
         double markZ = markPos.z;
 
-        // Определяем диапазон высот для проверки
         double minY = Math.max(config.getDownRange(), cameraPos.y - 10);
         double maxY = Math.min(config.getMaxY(), cameraPos.y + 20);
 
-        // Шаг проверки - каждые 2 блока
         double step = 2.0;
 
-        // Проверяем несколько точек вдоль луча
         for (double y = minY; y <= maxY; y += step) {
             Vec3d beamPoint = new Vec3d(markX, y, markZ);
             if (isPointVisible(cameraPos, beamPoint)) {
@@ -165,7 +168,10 @@ public class GeometryCalculator {
         return false;
     }
 
-    /** Проецирует точку мира на экран */
+    /**
+     * Projects 3D world position to 2D screen coordinates
+     * Handles FOV calculations and camera transformations
+     */
     public Vec3d projectToScreen(MinecraftClient client, Vec3d worldPos) {
         Window window = client.getWindow();
         int screenWidth = window.getScaledWidth();
@@ -183,13 +189,12 @@ public class GeometryCalculator {
 
         Vec3d dir = transformed.normalize();
         Vec3d forward = client.getCameraEntity().getRotationVector();
-        if (dir.dotProduct(forward) <= 0) return null; // За камерой или под углом 90+
+        if (dir.dotProduct(forward) <= 0) return null;
 
-        // Горизонтальный угол
         Vec3d forwardHor = new Vec3d(forward.x, 0, forward.z);
         double forwardHorLen = forwardHor.length();
         if (forwardHorLen < 0.001) {
-            return null; // Смотрим почти вертикально, проекция неоднозначна
+            return null;
         }
         forwardHor = forwardHor.normalize();
         Vec3d dirHor = new Vec3d(dir.x, 0, dir.z);
@@ -200,7 +205,6 @@ public class GeometryCalculator {
 
         double x = screenWidth / 2.0 + (angleHor / (hFovRad / 2.0)) * (screenWidth / 2.0);
 
-        // Вертикальный угол (аппроксимация разницы pitch)
         double angleVert = Math.asin(dir.y) - Math.asin(forward.y);
         if (Math.abs(angleVert) > vFovRad / 2) return null;
 
@@ -211,21 +215,22 @@ public class GeometryCalculator {
 
     private float calculateTransparencyByDistance(double horizontalDistance) {
         if (horizontalDistance <= config.getBeamCenterTolerance()) {
-            return 1.0f; // Полная непрозрачность в центре
+            return 1.0f; // Full opacity in the center
         } else {
-            // Линейное затухание от центра до края
+            // Linear attenuation from center to edge
             float fadeProgress = (float)(horizontalDistance - config.getBeamCenterTolerance()) /
                     (float)(config.getFadeDistance() - config.getBeamCenterTolerance());
             return Math.max(config.getMinInteractionTransparency(), 1.0f - fadeProgress);
         }
     }
 
-    /** Проверяет видимость конкретной точки */
+    /**
+     * Performs raycast to check if point is visible (not obstructed by blocks)
+     */
     private boolean isPointVisible(Vec3d cameraPos, Vec3d point) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null) return false;
 
-        // Делаем raycast от камеры к точке
         RaycastContext context = new RaycastContext(
                 cameraPos,
                 point,

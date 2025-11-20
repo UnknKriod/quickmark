@@ -31,9 +31,14 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Main entry point for the Quickmark client-side mod.
+ * Handles initialization of networking, keybindings, renderers, and event registrations.
+ */
 public class Quickmark implements ClientModInitializer {
     public static final String MOD_ID = "quickmark";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
     private static KeyBinding acceptInvitationKey;
     private static int pluginCheckTimer = 0;
     private static boolean waitingForPluginCheck = false;
@@ -46,7 +51,7 @@ public class Quickmark implements ClientModInitializer {
     public void onInitializeClient() {
         log("Quickmark initialing started");
 
-        // Initialize server-side networking for integrated servers (e.g., LAN)
+        // Set up server-side networking for single-player/LAN servers
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             log("Initializing Quickmark server networking for integrated server");
             ServerNetworking.initialize();
@@ -55,7 +60,7 @@ public class Quickmark implements ClientModInitializer {
 
         registerPacketTypes();
 
-        // Sounds
+        // Register custom sound events
         Registry.register(Registries.SOUND_EVENT, Identifier.of(MOD_ID, "normal_ping"),
                 SoundEvent.of(Identifier.of(MOD_ID, "normal_ping")));
         Registry.register(Registries.SOUND_EVENT, Identifier.of(MOD_ID, "danger_ping"),
@@ -73,16 +78,17 @@ public class Quickmark implements ClientModInitializer {
         MouseHandler.initialize();
         MarkManager.initialize();
 
-        // Регистрируем команды
+        // Register client-side commands
         ClientCommandRegistrationCallback.EVENT.register(TeamCommand::register);
+
         TeamManager.initialize();
 
-        // WorldRenderEvents — 3D метки
+        // Register 3D mark rendering after translucent blocks
         WorldRenderEvents.AFTER_TRANSLUCENT.register((context) -> {
             MarkRenderer.render3D(context.matrixStack(), MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers());
         });
 
-        // HudRenderCallback — тултип
+        // Register HUD overlays and tooltips
         HudRenderCallback.EVENT.register((context, tickDelta) -> {
             TeamHudRenderer.render(context);
             InviteOverlayRenderer.INSTANCE.render(context);
@@ -91,14 +97,12 @@ public class Quickmark implements ClientModInitializer {
             MarkRenderer.renderHUD(context);
         });
 
-
-        // Обработка кликов по приглашениям и проверка плагина
+        // Handle invitation key presses and plugin checks on client tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
                 TeamManager.updateTeamHealth();
             }
 
-            // Обработка таймера проверки плагина
             if (waitingForPluginCheck) {
                 pluginCheckTimer--;
                 if (pluginCheckTimer <= 0) {
@@ -109,19 +113,21 @@ public class Quickmark implements ClientModInitializer {
             }
         });
 
+        // Reset state on joining a server
         ClientPlayConnectionEvents.JOIN.register((clientPlayNetworkHandler, client, minecraftClient) -> {
             MarkManager.clearAllMarks();
             NetworkReceiver.clearAuthorizedPlayers();
             TeamManager.clearTeam();
-            TeamManager.clearPendingInvitations();
+            TeamManager.clearAllInvitations();
 
             NetworkSender.setServerHasPlugin(false);
 
-            // Таймер на 2 секунды (40 тиков) для проверки плагина
+            // Delay plugin check by 2 seconds (40 ticks)
             waitingForPluginCheck = true;
             pluginCheckTimer = 40;
         });
 
+        // Clean up on disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((clientPlayNetworkHandler, client) -> {
             waitingForPluginCheck = false;
             pluginCheckTimer = 0;
@@ -134,7 +140,7 @@ public class Quickmark implements ClientModInitializer {
             MarkManager.clearAllMarks();
             NetworkReceiver.clearAuthorizedPlayers();
             TeamManager.clearTeam();
-            TeamManager.clearPendingInvitations();
+            TeamManager.clearAllInvitations();
 
             NetworkSender.setServerHasPlugin(false);
         });
@@ -142,6 +148,9 @@ public class Quickmark implements ClientModInitializer {
         log("Quickmark initialized");
     }
 
+    /**
+     * Registers packet types for client-side networking.
+     */
     private void registerPacketTypes() {
         NetworkingInit.registerPayloads();
 

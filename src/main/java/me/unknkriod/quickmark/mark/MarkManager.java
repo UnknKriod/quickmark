@@ -15,10 +15,13 @@ import me.unknkriod.quickmark.network.NetworkSender;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Manages creation, removal, and expiration of marks per player.
+ */
 public class MarkManager {
     private static final Map<UUID, List<Mark>> playerMarks = new HashMap<>();
     private static final int MAX_DISTANCE = 256;
-    private static final long DANGER_TTL = 10000; // 10 секунд
+    private static final long DANGER_TTL = 10000; // 10 seconds
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -27,6 +30,9 @@ public class MarkManager {
         });
     }
 
+    /**
+     * Removes expired danger marks.
+     */
     private static void removeExpiredMarks() {
         long currentTime = System.currentTimeMillis();
         for (List<Mark> marks : playerMarks.values()) {
@@ -41,11 +47,13 @@ public class MarkManager {
         playerMarks.clear();
     }
 
+    /**
+     * Creates a new mark at the raycasted block position if valid.
+     */
     public static void createMark(MarkType type, UUID playerId) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
 
-        // Рейкаст на твёрдый блок
         Vec3d start = client.player.getCameraPosVec(1.0f);
         Vec3d look = client.player.getRotationVec(1.0f);
         Vec3d end = start.add(look.multiply(MAX_DISTANCE));
@@ -76,6 +84,9 @@ public class MarkManager {
         );
     }
 
+    /**
+     * Adds a received mark, checking for expiration.
+     */
     public static void addMark(Mark mark) {
         if (mark.getType() == MarkType.DANGER &&
                 System.currentTimeMillis() - mark.getCreationTime() > 10000) {
@@ -100,6 +111,9 @@ public class MarkManager {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Removes a mark by ID and spawns cloud particles at its position.
+     */
     public static void removeMark(UUID markId) {
         for (List<Mark> marks : playerMarks.values()) {
             Iterator<Mark> iterator = marks.iterator();

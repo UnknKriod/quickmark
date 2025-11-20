@@ -22,9 +22,9 @@ public class TeamHudRenderer {
     private static final int HEALTH_ICON_SIZE = 9;
     private static final int HEAD_PADDING = 4;
     private static final int MAX_HEALTH = 20;
-    private static final int HEALTH_TEXT_Y_OFFSET = 10; // Отступ между строками здоровья
-    private static final int NAME_HEALTH_SPACING = 2; // Отступ между ником и здоровьем
-    private static final int HEAD_TEXT_SPACING = 8;   // Горизонтальный отступ текста от головы
+    private static final int HEALTH_TEXT_Y_OFFSET = 10; // Indentation between health lines
+    private static final int NAME_HEALTH_SPACING = 2; // The difference between nickname and health
+    private static final int HEAD_TEXT_SPACING = 8; // Horizontal text offset from the head
 
     private static final float HUD_SCALE_FACTOR = 0.85f;
 
@@ -37,14 +37,12 @@ public class TeamHudRenderer {
 
         context.getMatrices().pushMatrix();
 
-        // Рассчитываем общую высоту HUD после масштабирования
+        // Calculate scaled total height for vertical centering
         float scale = HUD_SCALE_FACTOR;
         int scaledTotalHeight = (int) (teamMembers.size() * PLAYER_HEIGHT * scale);
 
-        // Центрируем по вертикали
         int startY = (screenHeight - scaledTotalHeight) / 2;
 
-        // Применяем трансформации
         context.getMatrices().translate(10, startY);
         context.getMatrices().scale(scale, scale);
 
@@ -60,19 +58,17 @@ public class TeamHudRenderer {
     private static void renderPlayerInfo(DrawContext context, TeamPlayer player, int x, int y) {
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Получаем позицию игрока в команде для цвета
         int position = TeamManager.getPlayerPosition(player.getPlayerId());
         int color = getColorForPosition(position);
 
-        // Рисуем фоновую панель
+        // Draw background panel
         context.fill(x, y, x + PLAYER_WIDTH, y + PLAYER_HEIGHT, 0x80000000);
 
         int centerY = y + (PLAYER_HEIGHT - HEAD_SIZE) / 2;
 
-        // Получаем текстуру скина
         Identifier skinTexture = getSkinTexture(player.getPlayerId(), player.getPlayerName());
         if (skinTexture != null) {
-            // Рисуем голову игрока (8x8 пикселей из текстуры)
+            // Render player head (8x8 pixels from texture)
             GuiComponent.drawTexture(context, skinTexture,
                     x + HEAD_PADDING,
                     centerY,
@@ -83,7 +79,7 @@ public class TeamHudRenderer {
             context.getMatrices().pushMatrix();
             context.getMatrices().translate(0, 0);
 
-            // Рисуем шляпу игрока поверх головы (40x8 пикселей из текстуры)
+            // Render player hat layer (40x8 pixels from texture)
             GuiComponent.drawTexture(context, skinTexture,
                     x + HEAD_PADDING,
                     centerY,
@@ -94,7 +90,6 @@ public class TeamHudRenderer {
             context.getMatrices().popMatrix();
         }
 
-        // Ник игрока
         int textX = x + HEAD_SIZE + HEAD_TEXT_SPACING;
 
         context.drawText(client.textRenderer,
@@ -108,27 +103,25 @@ public class TeamHudRenderer {
         int heartX = textX;
         int heartY;
 
-        // Если нет абсорбции — центрируем здоровье
+        // Center health if no absorption
         if (absorption <= 0) {
             heartY = centerY + client.textRenderer.fontHeight + NAME_HEALTH_SPACING + (HEALTH_TEXT_Y_OFFSET / 2);
         } else {
-            // Если есть абсорбция — две строки
+            // Two rows if absorption present
             heartY = centerY + client.textRenderer.fontHeight + NAME_HEALTH_SPACING;
         }
 
-        // Числовой режим для обычного здоровья
         boolean numericHealth = health > MAX_HEALTH;
-        // Числовой режим для абсорбции
         boolean numericAbsorption = absorption > MAX_HEALTH;
 
-        // Рендер обычного здоровья
+        // Render regular health
         if (numericHealth) {
             renderNumericSingle(context, GuiComponent.HEART_FULL, health, heartX, heartY);
         } else {
             renderHearts(context, health, heartX, heartY, false);
         }
 
-        // Рендер абсорбции, если есть
+        // Render absorption if present
         if (absorption > 0) {
             if (numericAbsorption) {
                 renderNumericSingle(context, GuiComponent.HEART_ABSORBING_FULL, absorption, heartX, heartY + HEALTH_TEXT_Y_OFFSET);
@@ -139,7 +132,7 @@ public class TeamHudRenderer {
     }
 
     /**
-     * Отображает здоровье в виде сердечек
+     * Renders health as heart icons
      */
     private static void renderHearts(DrawContext context, float healthValue, int startX, int startY, boolean isAbsorption) {
         int heartCount = MathHelper.ceil(healthValue / 2.0f);
@@ -150,13 +143,13 @@ public class TeamHudRenderer {
             Identifier texture;
 
             if (healthValue > heartIndex + 1) {
-                // Полное сердце
+                // Full heart
                 texture = isAbsorption ? GuiComponent.HEART_ABSORBING_FULL : GuiComponent.HEART_FULL;
             } else if (healthValue > heartIndex) {
-                // Половина сердца
+                // Half heart
                 texture = isAbsorption ? GuiComponent.HEART_ABSORBING_HALF : GuiComponent.HEART_HALF;
             } else {
-                // Пустое сердце
+                // Empty heart
                 texture = GuiComponent.HEART_EMPTY;
             }
 
@@ -171,30 +164,30 @@ public class TeamHudRenderer {
     }
 
     /**
-     * Отображает здоровье в числовом формате
+     * Renders health in numeric format with icon
      */
     private static void renderNumericSingle(DrawContext context, Identifier icon, float value, int startX, int startY) {
         MinecraftClient client = MinecraftClient.getInstance();
 
         int color = ColorHelper.getArgb(255, 243, 243, 243);
 
-        // Переводим здоровье в сердца
+        // Convert health to hearts
         float hearts = value / 2.0f;
 
-        // Округляем до ближайшей половинки
+        // Round to nearest half
         hearts = Math.round(hearts * 2) / 2.0f;
 
-        // Форматируем
+        // Format display text
         String text = "x " + ((hearts % 1 == 0) ? String.valueOf((int) hearts) : (int) hearts + ".5");
 
-        // Рисуем иконку
+        // Draw heart icon
         GuiComponent.drawTexture(context, icon,
                 startX, startY,
                 0, 0,
                 HEALTH_ICON_SIZE, HEALTH_ICON_SIZE,
                 9, 9);
 
-        // Рисуем текст
+        // Draw numeric text
         context.drawText(client.textRenderer, text,
                 startX + HEALTH_ICON_SIZE + 2, startY,
                 color, false);

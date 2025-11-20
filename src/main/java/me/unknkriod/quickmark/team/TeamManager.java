@@ -14,31 +14,43 @@ import net.minecraft.util.math.ColorHelper;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Manages team members, invitations, and leadership.
+ * Handles adding/removing players, invitations, and health updates.
+ */
 public class TeamManager {
     private static final List<TeamPlayer> teamMembers = new LinkedList<>();
     private static UUID leaderId;
-    private static final Map<UUID, String> pendingInvitations = new ConcurrentHashMap<>();
+
+    private static final Map<UUID, String> pendingOutgoingInvitations = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> pendingIncomingInvitations = new ConcurrentHashMap<>();
+
+    private static final Map<UUID, Long> outgoingInvitationTimestamps = new ConcurrentHashMap<>();
+    private static final long OUTGOING_INVITATION_TIMEOUT = 5000; // 5 seconds
+
     private static final Set<UUID> knownPlayers = new HashSet<>();
 
+    /**
+     * Initializes team management, including tick handlers for player tracking and health updates.
+     */
     public static void initialize() {
-        // Ждём, пока появится игрок
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.getNetworkHandler() == null) return;
 
             if (getPlayerById(client.player.getUuid()) == null) {
                 addPlayerQuietly(client.player.getUuid(), client.player.getName().getLiteralString());
 
-                // Если команда состоит только из нас, назначаем себя лидером
+                // Set self as leader if alone in team
                 if (teamMembers.size() == 1 && leaderId == null) {
                     setLeaderQuietly(client.player.getUuid());
                 }
             }
 
-            // Текущие игроки
+            // Track current online players
             Set<UUID> current = new HashSet<>();
             client.getNetworkHandler().getPlayerList().forEach(entry -> current.add(entry.getProfile().getId()));
 
-            // Вышедшие
+            // Remove offline players
             for (UUID uuid : new HashSet<>(knownPlayers)) {
                 if (!current.contains(uuid)) {
                     removePlayer(uuid);
@@ -46,17 +58,45 @@ public class TeamManager {
                 }
             }
 
-            // Новые
+            // Add new online players to known set
             for (UUID uuid : current) {
                 if (!knownPlayers.contains(uuid)) {
                     knownPlayers.add(uuid);
                 }
             }
+
+            checkOutgoingInvitationsTimeout();
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             knownPlayers.clear();
+            clearAllInvitations();
         });
+    }
+
+    /**
+     * Checks and deletes expired outgoing invitations
+     */
+    private static void checkOutgoingInvitationsTimeout() {
+        long currentTime = System.currentTimeMillis();
+        Iterator<Map.Entry<UUID, Long>> iterator = outgoingInvitationTimestamps.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, Long> entry = iterator.next();
+            UUID playerId = entry.getKey();
+            long sendTime = entry.getValue();
+
+            if (currentTime - sendTime > OUTGOING_INVITATION_TIMEOUT) {
+                String playerName = pendingOutgoingInvitations.get(playerId);
+                if (playerName != null) {
+                    Quickmark.log("Outgoing invitation to " + playerName + " has timed out");
+                }
+
+                // Удаляем из обеих карт
+                iterator.remove();
+                pendingOutgoingInvitations.remove(playerId);
+            }
+        }
     }
 
     public static void clearTeam() {
@@ -64,7 +104,12 @@ public class TeamManager {
         leaderId = null;
     }
 
-    // Добавляет игрока без отправки обновления
+    public static void clearAllInvitations() {
+        pendingOutgoingInvitations.clear();
+        pendingIncomingInvitations.clear();
+        outgoingInvitationTimestamps.clear();
+    }
+
     private static void addPlayerQuietly(UUID playerId, String playerName) {
         if (getPlayerById(playerId) != null) return;
 
@@ -72,10 +117,13 @@ public class TeamManager {
         teamMembers.add(newPlayer);
     }
 
+    /**
+     * Removes a player from the team and reassigns leader if necessary.
+     */
     public static void removePlayer(UUID playerId) {
         teamMembers.removeIf(player -> player.getPlayerId().equals(playerId));
 
-        // Если удалили лидера - выбираем нового
+        // If you have deleted the leader, select a new one.
         if (playerId.equals(leaderId)) {
             if (!teamMembers.isEmpty()) {
                 setLeaderQuietly(teamMembers.getFirst().getPlayerId());
@@ -85,7 +133,6 @@ public class TeamManager {
         }
     }
 
-    // Устанавливает лидера без отправки обновления
     private static void setLeaderQuietly(UUID newLeaderId) {
         leaderId = newLeaderId;
         ensureLeaderFirst();
@@ -100,8 +147,10 @@ public class TeamManager {
         return new ArrayList<>(teamMembers);
     }
 
+    /**
+     * Sets the team members and leader, ensuring no duplicates.
+     */
     public static void setTeamMembers(List<TeamPlayer> members, UUID leaderId) {
-        // Удаляем дубликаты
         Set<UUID> existingIds = new HashSet<>();
         List<TeamPlayer> uniqueMembers = new ArrayList<>();
 
@@ -141,6 +190,9 @@ public class TeamManager {
         return null;
     }
 
+    /**
+     * Retrieves player name from team or network handler if available.
+     */
     public static String getPlayerName(UUID playerId) {
         TeamPlayer player = getPlayerById(playerId);
         if (player != null) return player.getPlayerName();
@@ -154,14 +206,15 @@ public class TeamManager {
         return null;
     }
 
+    /**
+     * Updates health and absorption for all team members in the world.
+     */
     public static void updateTeamHealth() {
-        // Получаем список UUID всех игроков в команде
         Set<UUID> teamPlayerIds = new HashSet<>();
         for (TeamPlayer player : teamMembers) {
             teamPlayerIds.add(player.getPlayerId());
         }
 
-        // Обновляем только игроков в команде
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world != null) {
             for (PlayerEntity playerEntity : client.world.getPlayers()) {
@@ -177,83 +230,120 @@ public class TeamManager {
         }
     }
 
+    /**
+     * Sends an invitation to a player if the sender is the leader.
+     */
     public static void sendInvitation(UUID targetPlayerId) {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) return;
 
         UUID selfId = player.getUuid();
 
-        // Защита от приглашения самого себя
         if (selfId.equals(targetPlayerId)) {
-            Quickmark.LOGGER.warn("Нельзя пригласить самого себя");
+            Quickmark.LOGGER.warn("You can't invite yourself.");
             return;
         }
 
-        // Проверка на лидерство
         if (!isLeader(selfId)) {
-            Quickmark.LOGGER.warn("Только лидер может приглашать игроков");
+            Quickmark.LOGGER.warn("Only the leader can invite players.");
             return;
         }
 
-        pendingInvitations.put(targetPlayerId, player.getName().getLiteralString());
-        NetworkSender.sendInvitation(targetPlayerId);
-        Quickmark.log("Invited: " + TeamManager.getPlayerName(targetPlayerId));
-    }
+        if (pendingOutgoingInvitations.containsKey(targetPlayerId)) {
+            Quickmark.LOGGER.warn("You have already sent an invitation to this player.");
+            return;
+        }
 
-    public static void addPendingInvitation(UUID senderId, String senderName) {
-        // Проверяем, нет ли уже такого приглашения
-        if (!pendingInvitations.containsKey(senderId)) {
-            pendingInvitations.put(senderId, senderName);
-            Quickmark.log("Added pending invitation: " + senderName);
-            InviteOverlayRenderer.INSTANCE.show(senderId, senderName);
+        if (pendingIncomingInvitations.containsKey(targetPlayerId)) {
+            Quickmark.LOGGER.warn("This player has already sent you an invitation. Please respond to it first.");
+            return;
+        }
+
+        String targetName = getPlayerName(targetPlayerId);
+        if (targetName != null) {
+            pendingOutgoingInvitations.put(targetPlayerId, targetName);
+            outgoingInvitationTimestamps.put(targetPlayerId, System.currentTimeMillis());
+            NetworkSender.sendInvitation(targetPlayerId);
+            Quickmark.log("Invited: " + targetName);
         }
     }
 
+    public static void addIncomingInvitation(UUID senderId, String senderName) {
+        if (pendingIncomingInvitations.containsKey(senderId)) {
+            Quickmark.log("Already have pending invitation from: " + senderName);
+            return;
+        }
+
+        pendingIncomingInvitations.put(senderId, senderName);
+        Quickmark.log("Received invitation from: " + senderName);
+        InviteOverlayRenderer.INSTANCE.show(senderId, senderName);
+    }
+
+    /**
+     * Accepts an invitation, joins the team, and updates via network.
+     */
     public static void acceptInvitation(UUID senderId) {
-        String senderName = pendingInvitations.remove(senderId);
+        String senderName = pendingIncomingInvitations.remove(senderId);
         if (senderName != null) {
             NetworkSender.sendInvitationResponse(senderId, true);
             SuccessOverlayRenderer.INSTANCE.show(senderId, senderName);
 
-            // Очищаем текущую команду
             clearTeam();
 
-            // Добавляем отправителя как лидера (без отправки обновления)
             addPlayerQuietly(senderId, senderName);
             setLeaderQuietly(senderId);
 
-            // Добавляем себя в команду (без отправки обновления)
             ClientPlayerEntity player = MinecraftClient.getInstance().player;
             if (player != null) {
                 addPlayerQuietly(player.getUuid(), player.getName().getLiteralString());
                 NetworkSender.sendTeamJoinInfo(player.getUuid());
             }
 
-            // Теперь отправляем одно обновление со всей командой
             NetworkSender.sendTeamUpdate();
+
+            // Clearing all outgoing invitations when accepting incoming
+            pendingOutgoingInvitations.clear();
+            outgoingInvitationTimestamps.clear();
         }
     }
 
-    public static void clearPendingInvitations() {
-        pendingInvitations.clear();
+    /**
+     * Deletes the outgoing invitation (when we receive a reply)
+     */
+    public static void removeOutgoingInvitation(UUID targetPlayerId) {
+        String targetName = pendingOutgoingInvitations.remove(targetPlayerId);
+        outgoingInvitationTimestamps.remove(targetPlayerId);
+        if (targetName != null) {
+            Quickmark.log("Removed outgoing invitation to: " + targetName);
+        }
     }
 
+    /**
+     * Ensures the leader is always first in the team list for rendering/order purposes.
+     */
     private static void ensureLeaderFirst() {
         if (leaderId == null) return;
 
         TeamPlayer leader = getPlayerById(leaderId);
         if (leader != null && !teamMembers.isEmpty() && !teamMembers.getFirst().getPlayerId().equals(leaderId)) {
-            // Перемещаем лидера на первую позицию
             teamMembers.remove(leader);
             teamMembers.addFirst(leader);
         }
     }
 
-    public static void declineInvitation(UUID senderId) {
-        // Удаляем только одно приглашение
-        if (pendingInvitations.containsKey(senderId)) {
-            pendingInvitations.remove(senderId);
+    public static void declineIncomingInvitation(UUID senderId) {
+        String senderName = pendingIncomingInvitations.remove(senderId);
+        if (senderName != null) {
             NetworkSender.sendInvitationResponse(senderId, false);
+            Quickmark.log("Declined invitation from: " + senderName);
+        }
+    }
+
+    public static void cancelOutgoingInvitation(UUID targetPlayerId) {
+        String targetName = pendingOutgoingInvitations.remove(targetPlayerId);
+        outgoingInvitationTimestamps.remove(targetPlayerId);
+        if (targetName != null) {
+            Quickmark.log("Cancelled invitation to: " + targetName);
         }
     }
 
@@ -266,17 +356,55 @@ public class TeamManager {
         return -1;
     }
 
+    /**
+     * Returns a color based on the player's position in the team (e.g., leader is blue).
+     */
     public static int getColorForPosition(int position) {
         return switch (position) {
-            case 0 -> ColorHelper.getArgb(255, 0, 120, 255);     // Синий (лидер)
-            case 1 -> ColorHelper.getArgb(255, 255, 102, 255);   // Розовый
-            case 2 -> ColorHelper.getArgb(255, 0, 255, 102);     // Зеленый
-            case 3 -> ColorHelper.getArgb(255, 255, 255, 90);   // Желтый
-            default -> ColorHelper.getArgb(255, 255, 165, 0);  // Оранжевый
+            case 0 -> ColorHelper.getArgb(255, 0, 120, 255);     // Blue (leader)
+            case 1 -> ColorHelper.getArgb(255, 255, 102, 255);   // Pink
+            case 2 -> ColorHelper.getArgb(255, 0, 255, 102);     // Green
+            case 3 -> ColorHelper.getArgb(255, 255, 255, 90);   // Yellow
+            default -> ColorHelper.getArgb(255, 255, 165, 0);  // Orange
         };
     }
 
     public static UUID getLeaderId() {
         return leaderId;
+    }
+
+    public static boolean hasOutgoingInvitation(UUID playerId) {
+        return pendingOutgoingInvitations.containsKey(playerId);
+    }
+
+    public static boolean hasIncomingInvitation(UUID playerId) {
+        return pendingIncomingInvitations.containsKey(playerId);
+    }
+
+    public static Map<UUID, String> getOutgoingInvitations() {
+        return new HashMap<>(pendingOutgoingInvitations);
+    }
+
+    public static Map<UUID, String> getIncomingInvitations() {
+        return new HashMap<>(pendingIncomingInvitations);
+    }
+
+    /**
+     * Возвращает оставшееся время для исходящего приглашения в миллисекундах
+     */
+    public static long getRemainingTimeForOutgoingInvitation(UUID playerId) {
+        Long sendTime = outgoingInvitationTimestamps.get(playerId);
+        if (sendTime == null) return 0;
+
+        long elapsed = System.currentTimeMillis() - sendTime;
+        long remaining = OUTGOING_INVITATION_TIMEOUT - elapsed;
+        return Math.max(0, remaining);
+    }
+
+    /**
+     * Проверяет, истекло ли исходящее приглашение
+     */
+    public static boolean isOutgoingInvitationExpired(UUID playerId) {
+        return getRemainingTimeForOutgoingInvitation(playerId) <= 0;
     }
 }

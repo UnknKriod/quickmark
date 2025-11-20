@@ -18,12 +18,14 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.text.Text;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Receives and processes network messages from plugin channel or filtered chat.
+ * Handles marks, team updates, invitations, and auth.
+ */
 public class NetworkReceiver {
     private static final Pattern MARK_PATTERN =
             Pattern.compile("quickmark://([0-9A-Za-z.\\-+=^!/*?&<>()\\[\\]{}@%$#:]+)");
@@ -34,7 +36,11 @@ public class NetworkReceiver {
     private static final Set<UUID> processedResponses = new HashSet<>();
     private static final Set<String> processedAuthTokens = new HashSet<>();
     private static final Set<UUID> authorizedPlayers = new HashSet<>();
+    private static final Map<UUID, String> pendingAuthTokens = new HashMap<>();
 
+    /**
+     * Processes plugin channel messages.
+     */
     public static void handlePluginMessage(PacketByteBuf buf) {
         byte[] raw = new byte[buf.readableBytes()];
         buf.readBytes(raw);
@@ -59,7 +65,7 @@ public class NetworkReceiver {
         char type = (char) (data[0] & 0xFF);
 
         switch (type) {
-            case 'M' -> handleMarkData(received, null);
+            case 'M' -> handleMarkData(received);
             case 'X' -> {
                 UUID markId = MarkSerializer.deserializeRemoveCommand(received);
                 if (markId != null) MarkManager.removeMark(markId);
@@ -67,13 +73,13 @@ public class NetworkReceiver {
             case 'T' -> handleTeamUpdateData(received);
             case 'J' -> {
                 UUID joinedId = TeamSerializer.deserializeTeamJoinInfo(received);
-                if (joinedId != null) handleTeamJoinData(joinedId);
+                if (joinedId != null) handleTeamJoinInfo(joinedId);
             }
             case 'I' -> {
                 if (data.length >= 33) {
                     UUID inviterId = Base85Encoder.bytesToUuid(data, 17); // 1 + 16 (target) + 16 (sender)
-                    handleInvitationData(inviterId, received);
-                }
+                    handleInvitationData(inviterId);
+                };
             }
             case 'R' -> {
                 if (data.length >= 34) {
@@ -116,7 +122,10 @@ public class NetworkReceiver {
         }
         processedAuthTokens.add(token);
 
-        authorizedPlayers.add(senderId);
+        // Добавляем проверку, чтобы не авторизовывать повторно
+        if (!authorizedPlayers.contains(senderId)) {
+            authorizedPlayers.add(senderId);
+        }
 
         if ("REQ".equals(type)) {
             NetworkSender.sendSecurePingAck(senderId);
@@ -130,27 +139,12 @@ public class NetworkReceiver {
         // Handle team invitations
         UUID inviteSender = TeamSerializer.deserializeInvitation(encoded);
         if (inviteSender != null) {
-            if (isSelf(inviteSender)) {
-                return;
-            }
-            TeamManager.addPendingInvitation(inviteSender, senderName);
-            SoundManager.playInviteSound();
+            handleInvitationData(inviteSender);
             return;
         }
 
         // Handle invitation responses
-        TeamSerializer.InvitationResponse response = TeamSerializer.deserializeInvitationResponse(encoded);
-        if (response != null) {
-            if (!processedResponses.contains(response.senderId)) {
-                processedResponses.add(response.senderId);
-                if (response.accepted) {
-                    Quickmark.LOGGER.info(senderName + " accepted your invitation");
-                } else {
-                    Quickmark.LOGGER.info(senderName + " declined your invitation");
-                }
-            }
-            return;
-        }
+        handleInvitationResponseData(senderId, encoded);
 
         // Handle mark removal
         UUID removeId = MarkSerializer.deserializeRemoveCommand(encoded);
@@ -167,34 +161,30 @@ public class NetworkReceiver {
         }
 
         // Handle team update
-        TeamSerializer.TeamData teamData = TeamSerializer.deserializeTeamUpdate(encoded);
-        if (teamData != null) {
-            TeamManager.setTeamMembers(teamData.members, teamData.leaderId);
-            return;
-        }
+        handleTeamUpdateData(encoded);
 
         // Handle mark
-        handleMarkData(encoded, sender);
+        handleMarkData(encoded);
     }
 
-    private static void handleMarkData(String encoded, GameProfile sender) {
+    private static void handleMarkData(String encoded) {
         Mark mark = MarkSerializer.deserializeMark(encoded);
-        if (mark != null) {
-            if (mark.getType() == MarkType.DANGER &&
-                    System.currentTimeMillis() - mark.getCreationTime() > 10000) {
-                mark.markExpired();
-            }
-            MarkManager.addMark(mark);
+        if (mark == null) return;
+
+        if (mark.getType() == MarkType.DANGER &&
+                System.currentTimeMillis() - mark.getCreationTime() > 10000) {
+            mark.markExpired();
         }
+        MarkManager.addMark(mark);
     }
 
-    private static void handleInvitationData(UUID inviterId, String encoded) {
-        if (isSelf(inviterId)) {
-            return;
-        }
+    private static void handleInvitationData(UUID inviterId) {
+        if (isSelf(inviterId)) return;
+
         String inviterName = TeamManager.getPlayerName(inviterId);
+
         if (inviterName != null) {
-            TeamManager.addPendingInvitation(inviterId, inviterName);
+            TeamManager.addIncomingInvitation(inviterId, inviterName);
             SoundManager.playInviteSound();
         }
     }
@@ -211,6 +201,7 @@ public class NetworkReceiver {
                     Quickmark.log(responderName + " declined your invitation");
                 }
             }
+            TeamManager.removeOutgoingInvitation(responderId);
         }
     }
 
@@ -233,10 +224,6 @@ public class NetworkReceiver {
         );
     }
 
-    private static void handleTeamJoinData(UUID joinedId) {
-        handleTeamJoinInfo(joinedId);
-    }
-
     public static boolean isQuickMarkMessage(String message) {
         return MARK_PATTERN.matcher(message).find();
     }
@@ -255,7 +242,13 @@ public class NetworkReceiver {
         return authorizedPlayers.contains(playerId);
     }
 
+    public static void authorizePlayer(UUID playerId) {
+        authorizedPlayers.add(playerId);
+    }
+
     public static void clearAuthorizedPlayers() {
         authorizedPlayers.clear();
+        processedAuthTokens.clear();
+        pendingAuthTokens.clear();
     }
 }
