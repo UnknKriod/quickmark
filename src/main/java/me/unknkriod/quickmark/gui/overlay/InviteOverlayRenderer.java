@@ -12,6 +12,9 @@ import java.util.UUID;
 
 import static me.unknkriod.quickmark.gui.GuiComponent.INVITE_TEXTURE;
 
+/**
+ * Invitation overlay with accept button (Y key), progress bar, and auto-decline after timeout.
+ */
 public class InviteOverlayRenderer extends AbstractOverlayRenderer {
     private static final int BASE_WIDTH = 462;
     private static final int BASE_HEIGHT = 57;
@@ -32,32 +35,28 @@ public class InviteOverlayRenderer extends AbstractOverlayRenderer {
         int targetX = 5;
         int y = 60;
 
-        // Вычисляем анимированную позицию
         int x = calculateAnimationX(targetX, scaledWidth);
-        if (!isVisible()) return; // Проверяем, не скрылся ли оверлей во время анимации
+        if (!isVisible()) return;
 
-        // Фон
+        // Background
         GuiComponent.drawTexture(context, INVITE_TEXTURE, x, y, 0, 0, scaledWidth, scaledHeight, scaledWidth, scaledHeight);
 
-        // Голова игрока
         int headX = x + (int) (15 * scale);
         int headY = y + (scaledHeight - (int) (32 * scale)) / 2;
         renderPlayerHead(context, headX, headY);
 
-        // Текст
         int textLeft = x + (int) (60 * scale);
         context.drawText(client.textRenderer,
-                Text.translatableWithFallback("quickmark.invitation.title", "ПРИГЛАШЕНИЕ В ГРУППУ"),
+                Text.translatableWithFallback("quickmark.invitation.title", "TEAM INVITATION"),
                 textLeft, y + (int) (12 * scale), 0xFF000000, false);
 
         context.drawText(client.textRenderer,
                 Text.translatableWithFallback("quickmark.invitation.message",
-                        "Игрок " + playerName + " приглашает вас вступить в группу", playerName),
+                        playerName + " invites you to join a team", playerName),
                 textLeft, y + (int) (32 * scale), 0xFF666666, false);
 
-        // Инструкция по принятию
         Text keyName = Quickmark.getAcceptInvitationKey().getBoundKeyLocalizedText();
-        Text acceptText = Text.translatableWithFallback("quickmark.invitation.accept", "Принять");
+        Text acceptText = Text.translatableWithFallback("quickmark.invitation.accept", "Accept");
         Text keyText = Text.literal("[" + keyName.getString() + "]");
 
         // Координаты для синей области
@@ -87,19 +86,17 @@ public class InviteOverlayRenderer extends AbstractOverlayRenderer {
         if (Quickmark.getAcceptInvitationKey().wasPressed() && animationState != STATE_DISAPPEARING) {
             long flashTime = System.currentTimeMillis() % 500;
             if (flashTime < 250) {
-                // Принимаем
                 acceptInvitation();
-                // Мигаем
                 context.fill(x, y, x + scaledWidth, y + scaledHeight, 0x40FFFFFF);
             }
         }
 
-        // Прогресс-бар
+        // Progress bar
         long elapsed = System.currentTimeMillis() - startTime;
         renderProgressBar(context, x, y, scaledWidth, scaledHeight, elapsed, DISPLAY_TIME);
 
         if (elapsed > DISPLAY_TIME && playerId != null && !responseSent) {
-            TeamManager.declineInvitation(playerId);
+            TeamManager.declineIncomingInvitation(playerId);
             responseSent = true;
             hide();
         }
@@ -113,11 +110,7 @@ public class InviteOverlayRenderer extends AbstractOverlayRenderer {
 
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player != null) {
-                client.player.playSound(
-                        SoundEvents.ENTITY_PLAYER_LEVELUP,
-                        1.0f,
-                        1.0f
-                );
+                client.player.playSound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
             }
         }
     }

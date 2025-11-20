@@ -12,23 +12,21 @@ import net.minecraft.util.Identifier;
 import java.util.UUID;
 
 public abstract class AbstractOverlayRenderer {
-    // Состояния анимации
+    // Animation states
     protected static final int STATE_HIDDEN = 0;
     protected static final int STATE_APPEARING = 1;
     protected static final int STATE_VISIBLE = 2;
     protected static final int STATE_DISAPPEARING = 3;
 
-    // Тайминги анимации
+    // Animation timing configuration
     protected long appearAnimationTime = 500;
     protected long disappearAnimationTime = 400;
     protected long displayTime = 5000;
 
-    // Состояние и время
     protected int animationState = STATE_HIDDEN;
     protected long animationStartTime;
     protected int lastX;
 
-    // Данные игрока
     protected UUID playerId = null;
     protected String playerName = null;
     protected long startTime = 0;
@@ -47,8 +45,7 @@ public abstract class AbstractOverlayRenderer {
         if (animationState == STATE_VISIBLE || animationState == STATE_APPEARING) {
             animationState = STATE_DISAPPEARING;
             animationStartTime = System.currentTimeMillis();
-            // Запоминаем текущую позицию для анимации
-            lastX = 5; // Ваша целевая позиция X
+            lastX = 5; // Target X position for animation
         }
     }
 
@@ -72,7 +69,7 @@ public abstract class AbstractOverlayRenderer {
         if (skin != null) {
             int headSize = (int) (32 * scale);
 
-            // Рисуем голову игрока (8x8 пикселей из текстуры)
+            // Render player head (8x8 pixels from texture)
             GuiComponent.drawTexture(context, skin,
                     x,
                     y,
@@ -80,7 +77,7 @@ public abstract class AbstractOverlayRenderer {
                     headSize, headSize,
                     8, 8, 64, 64);
 
-            // Для лучшего отображения тонких деталей (очки и т.д.)
+            // Enhanced rendering for fine details (glasses, etc.)
             float scaleFactor = 1.05f;
             int scaledHeadSize = (int) (headSize * scaleFactor);
             int offsetX = x - (scaledHeadSize - headSize) / 2;
@@ -90,7 +87,7 @@ public abstract class AbstractOverlayRenderer {
             context.getMatrices().translate(offsetX, offsetY);
             context.getMatrices().scale(scaleFactor, scaleFactor);
 
-            // Рисуем шляпу игрока поверх головы (40x8 пикселей из текстуры)
+            // Render player hat layer (40x8 pixels from texture)
             GuiComponent.drawTexture(context, skin,
                     x,
                     y,
@@ -121,14 +118,15 @@ public abstract class AbstractOverlayRenderer {
                     animationStartTime = now;
                     return targetX;
                 } else {
+                    // Cubic easing out function for smooth animation
                     float progress = (float) elapsed / appearAnimationTime;
-                    progress = progress * progress * (3.0f - 2.0f * progress); // Ease-out
+                    progress = progress * progress * (3.0f - 2.0f * progress);
                     return (int) (targetX - width + (width * progress));
                 }
 
             case STATE_VISIBLE:
                 if (now - startTime > displayTime) {
-                    hide(); // Запускаем анимацию скрытия по истечении времени
+                    hide(); // Start hide animation when display time expires
                 }
                 return targetX;
 
@@ -137,24 +135,23 @@ public abstract class AbstractOverlayRenderer {
                     animationState = STATE_HIDDEN;
                     playerId = null;
                     playerName = null;
-                    return targetX - width; // Скрыто за левой границей
+                    return targetX - width; // Hidden beyond left border
                 } else {
-                    // Сначала сдвигаем на 2 пикселя вправо
+                    // First shift 2 pixels to the right
                     if (elapsed < disappearAnimationTime * 0.1f) {
                         return lastX + 2;
                     }
-                    // Затем анимируем движение влево
+                    // Then animate movement to the left
                     else {
                         float progress = (float) (elapsed - disappearAnimationTime * 0.1f) /
                                 (disappearAnimationTime * 0.9f);
-                        progress = progress * progress * (3.0f - 2.0f * progress); // Ease-out
-                        // progress = 1 - (1 - progress) * (1 - progress); // Ease-in
+                        progress = progress * progress * (3.0f - 2.0f * progress);
                         return (int) (lastX + 2 - (width + lastX + 2) * progress);
                     }
                 }
 
             default: // STATE_HIDDEN
-                return targetX - width; // Скрыто за левой границей
+                return targetX - width; // Hidden beyond left border
         }
     }
 

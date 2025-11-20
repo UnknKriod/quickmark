@@ -7,6 +7,8 @@
   "quickmark.command.invite.not_found": "Player %s not found",
   "quickmark.command.leave.success": "You left the team",
   "quickmark.command.not_leader": "Only team leader can invite players",
+  "quickmark.command.invite.pending": "The invitation for %s has already been sent. Try again in %d seconds",
+  "quickmark.command.invite.conflict": "Player %s has already sent you an invitation. Respond it first",
   "quickmark.success.title": "Joined the team",
   "quickmark.success.message": "You joined the team of %s",
   "subtitles.quickmark.ping": "Ping sound",

@@ -21,6 +21,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Sends network messages to the server or team members via plugin channel (preferred) or chat whispers (fallback).
+ * Handles plugin detection, secure pings for mod verification, and team/mark broadcasts.
+ */
 public class NetworkSender {
     private static final Identifier CHANNEL = Identifier.of("quickmark", "main");
     private static boolean serverHasPlugin = false;
@@ -34,6 +38,9 @@ public class NetworkSender {
         return serverHasPlugin;
     }
 
+    /**
+     * Sends a PING to detect if server has the Quickmark plugin.
+     */
     public static void checkServerPlugin() {
         if (ClientPlayNetworking.canSend(CHANNEL)) {
             try {
@@ -48,6 +55,9 @@ public class NetworkSender {
         }
     }
 
+    /**
+     * Sends a ping to alert a target player (used before invitations).
+     */
     public static void sendPing(UUID targetPlayer) {
         String name = TeamManager.getPlayerName(targetPlayer);
         if (name == null) return;
@@ -58,6 +68,9 @@ public class NetworkSender {
         sendSecurePing(targetPlayer);
     }
 
+    /**
+     * Sends a secure auth request to verify the target has the mod.
+     */
     private static void sendSecurePing(UUID targetPlayer) {
         if (NetworkReceiver.isPlayerAuthorized(targetPlayer)) return;
 
@@ -76,12 +89,16 @@ public class NetworkSender {
         String name = TeamManager.getPlayerName(targetPlayer);
         if (name == null) return;
 
+        NetworkReceiver.authorizePlayer(targetPlayer);
         String token = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
         String secureMessage = "quickmark-auth://ACK:" + token;
 
         sendPrivateMessage(name, secureMessage);
     }
 
+    /**
+     * Sends a mark to the team via plugin or whispers.
+     */
     public static void sendMarkToTeam(Mark mark) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
@@ -103,6 +120,9 @@ public class NetworkSender {
         }
     }
 
+    /**
+     * Sends a mark removal command to the team.
+     */
     public static void sendRemoveCommand(UUID markId) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
@@ -125,6 +145,21 @@ public class NetworkSender {
     public static void sendInvitation(UUID targetPlayerId) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
+
+        if (!serverHasPlugin && !NetworkReceiver.isPlayerAuthorized(targetPlayerId)) {
+            sendPing(targetPlayerId);
+            return;
+        }
+
+        // Checking if an existing invitation has expired.
+        if (TeamManager.hasOutgoingInvitation(targetPlayerId)) {
+            if (TeamManager.isOutgoingInvitationExpired(targetPlayerId)) {
+                TeamManager.removeOutgoingInvitation(targetPlayerId);
+            } else {
+                Quickmark.LOGGER.warn("Invitation to {} is still pending", TeamManager.getPlayerName(targetPlayerId));
+                return;
+            }
+        }
 
         String targetName = TeamManager.getPlayerName(targetPlayerId);
 
@@ -175,6 +210,9 @@ public class NetworkSender {
         }
     }
 
+    /**
+     * Broadcasts team update to team members.
+     */
     public static void sendTeamUpdate() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
@@ -220,8 +258,7 @@ public class NetworkSender {
     }
 
     /**
-     * Определяет, какую команду whisper можно использовать.
-     * Сначала проверяется /minecraft:tell, затем /minecraft:msg, затем /tell.
+     * Detects available whisper command (/minecraft:tell, /minecraft:msg, /tell).
      */
     private static String getAvailableWhisperCommand() {
         MinecraftClient client = MinecraftClient.getInstance();

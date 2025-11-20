@@ -10,10 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Serializes and deserializes team-related data (invitations, responses, updates) using Base85 encoding.
+ */
 public class TeamSerializer {
 
-    // -------------------- INVITE --------------------
-
+    /**
+     * Serializes an invitation from a sender.
+     */
     public static String serializeInvitation(UUID senderId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write('I');
@@ -32,8 +36,9 @@ public class TeamSerializer {
         }
     }
 
-    // -------------------- RESPONSE --------------------
-
+    /**
+     * Serializes a response to an invitation.
+     */
     public static String serializeInvitationResponse(UUID senderId, boolean accepted) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write('R');
@@ -55,8 +60,10 @@ public class TeamSerializer {
         }
     }
 
-    // -------------------- TEAM UPDATE --------------------
-
+    /**
+     * Serializes a team update with members and leader.
+     * Player names are truncated to 31 bytes if necessary.
+     */
     public static String serializeTeamUpdate(List<TeamPlayer> members, @NotNull UUID leaderId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write('T');
@@ -67,7 +74,6 @@ public class TeamSerializer {
             out.writeBytes(Base85Encoder.uuidToBytes(member.getPlayerId()));
             byte[] nameBytes = Base85Encoder.stringToBytes(member.getPlayerName());
             if (nameBytes.length > 31) {
-                // Ограничиваем имя 31 байтом
                 byte[] truncated = new byte[31];
                 System.arraycopy(nameBytes, 0, truncated, 0, 31);
                 nameBytes = truncated;
@@ -109,8 +115,9 @@ public class TeamSerializer {
         }
     }
 
-    // -------------------- TEAM JOIN INFO --------------------
-
+    /**
+     * Serializes info about a player joining the team.
+     */
     public static String serializeTeamJoinInfo(UUID joinedId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write('J'); // J = Join

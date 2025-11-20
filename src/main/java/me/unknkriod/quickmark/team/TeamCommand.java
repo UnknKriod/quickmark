@@ -22,8 +22,10 @@ import java.util.stream.Collectors;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.*;
 
+/**
+ * Registers and handles client-side commands for team management (/qm invite, /qm leave).
+ */
 public class TeamCommand {
-    // Провайдер подсказок для игроков
     private static final SuggestionProvider<FabricClientCommandSource> PLAYER_SUGGESTIONS =
             (context, builder) -> suggestOnlinePlayers(builder, MinecraftClient.getInstance());
 
@@ -48,24 +50,24 @@ public class TeamCommand {
         );
     }
 
-    // Метод для предложения онлайн-игроков
+    /**
+     * Suggests online players not in the team for invitation.
+     */
     private static CompletableFuture<Suggestions> suggestOnlinePlayers(
             SuggestionsBuilder builder, MinecraftClient client) {
 
         String input = builder.getRemaining().toLowerCase();
 
-        // Получаем список игроков на сервере
         if (client.getNetworkHandler() != null) {
             Collection<String> playerNames = client.getNetworkHandler().getPlayerList()
                     .stream()
                     .map(PlayerListEntry::getProfile)
                     .map(GameProfile::getName)
                     .filter(Objects::nonNull)
-                    .filter(name -> !name.equals(client.player.getName().getString())) // Исключаем себя
-                    .filter(name -> !TeamManager.isPlayerInTeam(name)) // Исключаем тиммейтов
+                    .filter(name -> !name.equals(client.player.getName().getString())) // Exclude self
+                    .filter(name -> !TeamManager.isPlayerInTeam(name)) // Exclude teammates
                     .toList();
 
-            // Фильтруем по вводу пользователя
             for (String name : playerNames) {
                 if (name.toLowerCase().startsWith(input)) {
                     builder.suggest(name);
@@ -82,11 +84,10 @@ public class TeamCommand {
         if (player == null) return;
 
         if (!TeamManager.isLeader(player.getUuid())) {
-            player.sendMessage(Text.translatableWithFallback("quickmark.command.not_leader", "Только лидер команды может приглашать игроков"), false);
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.not_leader", "Only the team leader can invite players"), false);
             return;
         }
 
-        // Получаем UUID по имени
         UUID targetId = null;
         if (client.getNetworkHandler() != null) {
             PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(playerName);
@@ -96,17 +97,33 @@ public class TeamCommand {
         }
 
         if (player.getUuid().equals(targetId)) {
-            player.sendMessage(Text.literal("Нельзя пригласить самого себя"), false);
+            player.sendMessage(Text.literal("You cannot invite yourself"), false);
+            return;
+        }
+
+        // Check existing invitations
+        if (TeamManager.hasOutgoingInvitation(targetId)) {
+            long remainingTime = TeamManager.getRemainingTimeForOutgoingInvitation(targetId);
+            if (remainingTime > 0) {
+                player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.pending",
+                        "Invitation for " + playerName + " has already been sent. Try again in " + (remainingTime/1000) + " seconds",
+                        playerName, remainingTime/1000), false);
+                return;
+            }
+        }
+
+        if (TeamManager.hasIncomingInvitation(targetId)) {
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.conflict",
+                    "Player " + playerName + " has already sent you an invitation. Respond to it first",
+                    playerName), false);
             return;
         }
 
         if (targetId != null) {
-            NetworkSender.sendPing(targetId);
-
             TeamManager.sendInvitation(targetId);
-            player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.sent", "Приглашение отправлено " + playerName, playerName), false);
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.sent", "Invitation sent to " + playerName, playerName), false);
         } else {
-            player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.not_found", "Игрок " + playerName + " не найден", playerName), false);
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.invite.not_found", "Player " + playerName + " not found", playerName), false);
         }
     }
 
@@ -116,6 +133,6 @@ public class TeamCommand {
 
         TeamManager.removePlayer(player.getUuid());
         NetworkSender.sendTeamUpdate();
-        player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.success", "Вы вышли из команды"), false);
+        player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.success", "You have left the team"), false);
     }
 }

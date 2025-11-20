@@ -7,6 +7,8 @@
   "quickmark.command.invite.not_found": "Игрок %s не найден",
   "quickmark.command.leave.success": "Вы вышли из команды",
   "quickmark.command.not_leader": "Только лидер команды может приглашать игроков",
+  "quickmark.command.invite.pending": "Приглашение для %s уже отправлено. Повторите через %d секунд",
+  "quickmark.command.invite.conflict": "Игрок %s уже отправил вам приглашение. Ответьте на него сначала",
   "quickmark.success.title": "Присоединение к группе",
   "quickmark.success.message": "Вы присоединились к группе %s",
   "subtitles.quickmark.ping": "Звук метки",

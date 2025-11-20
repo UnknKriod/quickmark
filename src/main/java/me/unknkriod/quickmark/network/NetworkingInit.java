@@ -1,7 +1,6 @@
 package me.unknkriod.quickmark.network;
 
 import me.unknkriod.quickmark.Quickmark;
-import me.unknkriod.quickmark.network.QuickmarkPayload;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 
 public class NetworkingInit {

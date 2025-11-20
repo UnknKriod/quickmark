@@ -13,6 +13,9 @@ import java.awt.Color;
 
 import static me.unknkriod.quickmark.gui.GuiComponent.MARK;
 
+/**
+ * Renders mark icons on the HUD (distance text, glow, hover effects).
+ */
 public class IconRenderer {
     private final MarkRenderConfig config;
     private final GeometryCalculator geometryCalc;
@@ -148,7 +151,6 @@ public class IconRenderer {
             return;
         }
 
-        // Рисуем обводку с альфа-каналом
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 if (dx == 0 && dy == 0) continue;

@@ -20,9 +20,14 @@ public class BeamRenderer {
         this.config = config;
     }
 
+    /**
+     * Renders a vertical beam in the world
+     * Adjusts visual width based on distance and FOV
+     * Uses gradient transparency from center to edges
+     */
     public void renderVerticalBeam(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
                                    BlockPos pos, Mark mark, Vec3d cameraPos, float fov, int screenWidth) {
-        // Определяем параметры в зависимости от типа метки
+        // Get parameters based on mark type
         float beamScreenWidth = (mark.getType() == MarkType.DANGER) ?
                 config.getDangerBeamScreenWidth() : config.getBeamScreenWidth();
         int upRange = (mark.getType() == MarkType.DANGER) ?
@@ -44,7 +49,7 @@ public class BeamRenderer {
         double y1 = downRange;
         double y2 = upRange;
 
-        // Вычисляем расстояние до ближайшей точки луча
+        // Calculate distance to beam for width adjustment
         double dx = xCenter - cameraPos.x;
         double dz = zCenter - cameraPos.z;
         double horizontalDistSq = dx * dx + dz * dz;
@@ -58,16 +63,16 @@ public class BeamRenderer {
             verticalDist = 0;
         }
         double distance = Math.sqrt(horizontalDistSq + verticalDist * verticalDist);
-        if (distance < 0.1) distance = 0.1; // Защита от деления на ноль
+        if (distance < 0.1) distance = 0.1;
 
-        // Рассчитываем скорректированную ширину луча
+        // Convert screen width to world units based on distance
         double horizontalFovRad = Math.toRadians(fov);
         double tanHalfFov = Math.tan(horizontalFovRad / 2.0);
         double pixelsPerBlockAtDistance1 = screenWidth / (2.0 * tanHalfFov);
         double adjustedBeamWidth = (beamScreenWidth * distance) / pixelsPerBlockAtDistance1;
         double halfBeamWidth = adjustedBeamWidth / 2.0;
 
-        // Направление к камере для ориентации луча
+        // Orient beam facing camera
         Vec3d toCamera = new Vec3d(cameraPos.x - xCenter, 0, cameraPos.z - zCenter);
         if (toCamera.lengthSquared() < 1e-4) {
             toCamera = new Vec3d(1, 0, 0);
@@ -75,39 +80,39 @@ public class BeamRenderer {
             toCamera = toCamera.normalize();
         }
 
-        // Перпендикулярный вектор для ширины луча
         Vec3d up = new Vec3d(0, 1, 0);
         Vec3d right = toCamera.crossProduct(up).normalize().multiply(halfBeamWidth);
 
-        // Центральные точки луча
+        // Calculate beam corner points
         Vec3d bottomCenter = new Vec3d(xCenter, y1, zCenter);
         Vec3d topCenter = new Vec3d(xCenter, y2, zCenter);
 
-        // Крайние точки луча
         Vec3d bottomLeft = bottomCenter.subtract(right);
         Vec3d bottomRight = bottomCenter.add(right);
         Vec3d topLeft = topCenter.subtract(right);
         Vec3d topRight = topCenter.add(right);
 
-        // Альфа-значения для градиента
-        float alphaEdge = 0.85f;    // Края менее прозрачны
-        float alphaCenter = 0.45f;   // Центр более прозрачен
+        // Gradient transparency values
+        float alphaEdge = 0.85f;
+        float alphaCenter = 0.45f;
 
-        // Рисуем левую половину луча с градиентом
+        // Render left half with gradient
         addBeamQuad(consumer, matrix,
                 bottomLeft, topLeft, topCenter, bottomCenter,
                 r, g, b, alphaEdge, alphaCenter);
 
-        // Рисуем правую половину луча с градиентом
+        // Render right half with gradient
         addBeamQuad(consumer, matrix,
                 bottomCenter, topCenter, topRight, bottomRight,
                 r, g, b, alphaCenter, alphaEdge);
     }
 
+    /**
+     * Creates a single quad for beam rendering with gradient transparency
+     */
     private void addBeamQuad(VertexConsumer consumer, Matrix4f matrix,
                              Vec3d v1, Vec3d v2, Vec3d v3, Vec3d v4,
                              float r, float g, float b, float alpha1, float alpha2) {
-        // Первая вершина
         consumer.vertex(matrix, (float) v1.x, (float) v1.y, (float) v1.z)
                 .color(r, g, b, alpha1)
                 .texture(0, 0)
@@ -115,7 +120,6 @@ public class BeamRenderer {
                 .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
                 .normal(0, 1, 0);
 
-        // Вторая вершина
         consumer.vertex(matrix, (float) v2.x, (float) v2.y, (float) v2.z)
                 .color(r, g, b, alpha1)
                 .texture(0, 1)
@@ -123,7 +127,6 @@ public class BeamRenderer {
                 .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
                 .normal(0, 1, 0);
 
-        // Третья вершина
         consumer.vertex(matrix, (float) v3.x, (float) v3.y, (float) v3.z)
                 .color(r, g, b, alpha2)
                 .texture(0.5f, 1)
@@ -131,7 +134,6 @@ public class BeamRenderer {
                 .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
                 .normal(0, 1, 0);
 
-        // Четвертая вершина
         consumer.vertex(matrix, (float) v4.x, (float) v4.y, (float) v4.z)
                 .color(r, g, b, alpha2)
                 .texture(0.5f, 0)

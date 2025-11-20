@@ -19,18 +19,18 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Mixin to filter and intercept Quickmark chat messages, preventing them from appearing in chat.
+ * Processes private messages and regular chat for mod data.
+ */
 @Mixin(ClientPlayNetworkHandler.class)
 public abstract class ChatFilterMixin {
 
-    // Паттерн для формата: [left -> right] message
+    // Pattern for private messages: [sender -> recipient] message (Essentials)
     private static final Pattern PRIVATE_MSG_PATTERN =
             Pattern.compile("^\\s*\\[(.+?)\\s*->\\s*(.+?)\\]\\s+(.*)$");
 
-    @Inject(
-            method = "onChatMessage",
-            at = @At("HEAD"),
-            cancellable = true
-    )
+    @Inject(method = "onChatMessage", at = @At("HEAD"), cancellable = true)
     private void filterChatMessage(ChatMessageS2CPacket packet, CallbackInfo ci) {
         String content = packet.body().content();
 
@@ -47,33 +47,23 @@ public abstract class ChatFilterMixin {
 
         UUID senderUuid = packet.sender();
 
-        // Получаем GameProfile через список игроков
         PlayerListEntry playerEntry = MinecraftClient.getInstance()
                 .getNetworkHandler()
                 .getPlayerListEntry(senderUuid);
 
         if (playerEntry != null) {
-            // Получаем полный профиль игрока
             GameProfile senderProfile = playerEntry.getProfile();
-
             NetworkReceiver.handleChatMessage(content, senderProfile);
-
-            ci.cancel(); // Подавляем сообщение
+            ci.cancel();
         }
     }
 
-    @Inject(
-            method = "onGameMessage",
-            at = @At("HEAD"),
-            cancellable = true
-    )
+    @Inject(method = "onGameMessage", at = @At("HEAD"), cancellable = true)
     private void filterGameMessage(GameMessageS2CPacket packet, CallbackInfo ci) {
         String content = packet.content().getString();
 
         Matcher m = PRIVATE_MSG_PATTERN.matcher(content);
-        if (!m.matches()) {
-            return; // не похоже на личное сообщение в формате [A -> B] ...
-        }
+        if (!m.matches()) return;
 
         String left = m.group(1).trim();
         String right = m.group(2).trim();
@@ -82,25 +72,17 @@ public abstract class ChatFilterMixin {
         boolean leftIsMe = left.equalsIgnoreCase("me");
         boolean rightIsMe = right.equalsIgnoreCase("me");
 
-        // если ни одна сторона не 'me', то это не PM, адресованный/исходящий от нас
-        if (!leftIsMe && !rightIsMe) {
-            return;
-        }
+        if (!leftIsMe && !rightIsMe) return;
 
-        // определяем ник отправителя
         String senderNick;
         if (rightIsMe && !leftIsMe) {
-            // формат: [sender -> me] message  -> sender = left
             senderNick = left;
         } else if (leftIsMe && !rightIsMe) {
-            // формат: [me -> recipient] message  -> отправитель = мы (текущий профиль)
             senderNick = MinecraftClient.getInstance().getGameProfile().getName();
         } else {
-            // на всякий: оба 'me' или непредвиденный случай — используем left
             senderNick = left;
         }
 
-        // пытаемся найти PlayerListEntry по нику отправителя (если он онлайн)
         PlayerListEntry playerEntry = null;
         if (MinecraftClient.getInstance().getNetworkHandler() != null) {
             for (PlayerListEntry e : MinecraftClient.getInstance().getNetworkHandler().getPlayerList()) {
@@ -123,7 +105,6 @@ public abstract class ChatFilterMixin {
             }
         }
 
-        // Теперь решаем, обрабатывать ли сообщение как QuickMark
         if (!NetworkReceiver.isQuickMarkMessage(messagePart) && !NetworkReceiver.isQuickMarkAuthMessage(messagePart)) {
             return;
         }

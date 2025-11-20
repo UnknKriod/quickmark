@@ -19,6 +19,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Server-side networking handler for Quickmark.
+ * Receives C2S packets, detects mod presence via pings, and broadcasts/relays messages to authorized players.
+ */
 public class ServerNetworking {
     private static final Logger LOGGER = LoggerFactory.getLogger(Quickmark.MOD_ID);
     private static final Map<UUID, Long> playerLastPing = new HashMap<>();
@@ -65,7 +69,7 @@ public class ServerNetworking {
     public static void registerTickHandler() {
         // Periodic cleanup of old pings
         ServerTickEvents.START_SERVER_TICK.register(server -> {
-            if (server.getTicks() % 120 == 0) { // Every 6 seconds (20 ticks/sec * 6 = 120)
+            if (server.getTicks() % 120 == 0) { // Every 6 seconds
                 long currentTime = System.currentTimeMillis();
                 playerLastPing.entrySet().removeIf(entry ->
                         currentTime - entry.getValue() > 30000); // 30 seconds
@@ -86,6 +90,9 @@ public class ServerNetworking {
         ServerPlayNetworking.send(target, new QuickmarkPayload(buf));
     }
 
+    /**
+     * Broadcasts to all players with mod except sender.
+     */
     private static void broadcast(ServerPlayerEntity sender, byte[] raw, MinecraftServer server) {
         for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
             if (!p.getUuid().equals(sender.getUuid()) && hasQuickMark(p)) {
@@ -96,6 +103,9 @@ public class ServerNetworking {
         }
     }
 
+    /**
+     * Checks if player has sent a ping recently (has mod).
+     */
     private static boolean hasQuickMark(ServerPlayerEntity player) {
         return playerLastPing.containsKey(player.getUuid());
     }
