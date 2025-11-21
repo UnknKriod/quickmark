@@ -84,13 +84,6 @@ The mod is inspired by Fortnite’s intuitive marker system, designed to enhance
 
 ---
 
-### 🚀 **Pull Requests are welcome!** 🙌
-
-
-Inspired by Fortnite’s intuitive marker system, designed to enhance team coordination and communication in Minecraft.
-
----
-
 ### 🚀 Contributing
 
 Pull Requests are welcome! Please feel free to submit issues and contributions on our [GitHub repository](https://github.com/UnknKriod/quickmark).
