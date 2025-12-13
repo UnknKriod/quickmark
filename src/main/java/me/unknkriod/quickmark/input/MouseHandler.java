@@ -5,6 +5,7 @@ import me.unknkriod.quickmark.network.NetworkSender;
 import me.unknkriod.quickmark.gui.mark.renderers.MarkRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.util.hit.HitResult;
 import org.lwjgl.glfw.GLFW;
 import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.mark.MarkType;
@@ -107,6 +108,13 @@ public class MouseHandler {
 
                 return;
             }
+        }
+
+        HitResult hitResult = client.player.raycast(7.0, 0.0f, false);
+
+        if (hitResult.getType() == HitResult.Type.BLOCK) {
+            resetState();
+            return;
         }
 
         MarkManager.createMark(type, client.player.getUuid());
