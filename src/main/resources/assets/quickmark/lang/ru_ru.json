@@ -20,5 +20,21 @@
   "quickmark.tooltip.danger.line1": "ОПАСНОСТЬ!",
   "quickmark.tooltip.line2": "Нажмите колесико мыши, чтобы удалить",
   "quickmark.info.invited.title": "Присоединение к группе",
-  "quickmark.info.invited.message": "%s присоединился к группе"
+  "quickmark.info.invited.message": "%s присоединился к группе",
+
+  "key.quickmark.open_team_gui": "Открыть управление командой",
+  "quickmark.gui.title": "Управление командой",
+  "quickmark.gui.team_members": "Участники команды",
+  "quickmark.gui.online_players": "Игроки онлайн",
+  "quickmark.gui.invitations": "Приглашения",
+  "quickmark.gui.leave_team": "Покинуть команду",
+  "quickmark.gui.no_team_members": "Нет участников",
+  "quickmark.gui.no_players_online": "Нет других игроков онлайн",
+  "quickmark.gui.no_invitations": "Нет приглашений",
+  "quickmark.gui.invite": "Пригласить",
+  "quickmark.gui.accept": "Принять",
+  "quickmark.gui.decline": "Отклонить",
+  "quickmark.gui.cancel": "Отменить",
+  "quickmark.gui.close": "Закрыть",
+  "quickmark.gui.leader_instructions": "Вы лидер команды. Вы можете приглашать других игроков."
 }

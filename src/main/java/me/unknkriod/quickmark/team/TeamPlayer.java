@@ -6,6 +6,7 @@ public class TeamPlayer {
     private final UUID playerId;
     private final String playerName;
     private float health;
+    private int maxHealth = 20;
     private float absorption;
 
     public TeamPlayer(UUID playerId, String playerName) {
@@ -23,6 +24,14 @@ public class TeamPlayer {
 
     public float getHealth() {
         return health;
+    }
+
+    public void setMaxHealth(int maxHealth) {
+        this.maxHealth = maxHealth;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
     }
 
     public float getAbsorption() {

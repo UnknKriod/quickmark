@@ -4,6 +4,7 @@ import me.unknkriod.quickmark.gui.overlay.InfoOverlayRenderer;
 import me.unknkriod.quickmark.gui.overlay.InviteOverlayRenderer;
 import me.unknkriod.quickmark.gui.overlay.SuccessOverlayRenderer;
 import me.unknkriod.quickmark.gui.TeamHudRenderer;
+import me.unknkriod.quickmark.gui.screen.TeamManagementScreen;
 import me.unknkriod.quickmark.input.MouseHandler;
 import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.network.*;
@@ -40,8 +41,10 @@ public class Quickmark implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding acceptInvitationKey;
-    private static int pluginCheckTimer = 0;
-    private static boolean waitingForPluginCheck = false;
+    private static KeyBinding openTeamGuiKey;
+
+    private static int initialPingDelay = 0;
+    private static boolean initialPingSent = false;
 
     public static KeyBinding getAcceptInvitationKey() {
         return acceptInvitationKey;
@@ -75,6 +78,13 @@ public class Quickmark implements ClientModInitializer {
                 "category.quickmark.main"
         ));
 
+        openTeamGuiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.quickmark.open_team_gui",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_I,
+                "category.quickmark.main"
+        ));
+
         MouseHandler.initialize();
         MarkManager.initialize();
 
@@ -101,15 +111,23 @@ public class Quickmark implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
                 TeamManager.updateTeamHealth();
+
+                NetworkSender.sendPeriodicPing();
+
+                NetworkReceiver.cleanupExpiredResponses();
+
+                if (!initialPingSent && initialPingDelay > 0) {
+                    initialPingDelay--;
+                    if (initialPingDelay <= 0) {
+                        LOGGER.info("Sending initial ping to server...");
+                        NetworkSender.sendPing();
+                        initialPingSent = true;
+                    }
+                }
             }
 
-            if (waitingForPluginCheck) {
-                pluginCheckTimer--;
-                if (pluginCheckTimer <= 0) {
-                    waitingForPluginCheck = false;
-                    LOGGER.info("Checking for server plugin...");
-                    NetworkSender.checkServerPlugin();
-                }
+            if (openTeamGuiKey.wasPressed()) {
+                client.setScreen(new TeamManagementScreen());
             }
         });
 
@@ -120,17 +138,17 @@ public class Quickmark implements ClientModInitializer {
             TeamManager.clearTeam();
             TeamManager.clearAllInvitations();
 
-            NetworkSender.setServerHasPlugin(false);
+            NetworkSender.reset();
 
             // Delay plugin check by 2 seconds (40 ticks)
-            waitingForPluginCheck = true;
-            pluginCheckTimer = 40;
+            initialPingSent = false;
+            initialPingDelay = 40;
         });
 
         // Clean up on disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((clientPlayNetworkHandler, client) -> {
-            waitingForPluginCheck = false;
-            pluginCheckTimer = 0;
+            initialPingSent = false;
+            initialPingDelay = 0;
 
             if (client.player != null) {
                 TeamManager.removePlayer(client.player.getUuid());
@@ -142,7 +160,7 @@ public class Quickmark implements ClientModInitializer {
             TeamManager.clearTeam();
             TeamManager.clearAllInvitations();
 
-            NetworkSender.setServerHasPlugin(false);
+            NetworkSender.reset();
         });
 
         log("Quickmark initialized");

@@ -28,30 +28,53 @@ import java.util.UUID;
 public class NetworkSender {
     private static final Identifier CHANNEL = Identifier.of("quickmark", "main");
     private static boolean serverHasPlugin = false;
+    private static long lastPingTime = 0;
+    private static final long PING_INTERVAL = 15000; // 15 seconds
+    private static boolean isFirstPingLog = true;
+
+    public static void reset() {
+        serverHasPlugin = false;
+        lastPingTime = 0;
+        isFirstPingLog = true;
+    }
 
     public static void setServerHasPlugin(boolean hasPlugin) {
+        boolean changed = serverHasPlugin != hasPlugin;
         serverHasPlugin = hasPlugin;
-        Quickmark.log("Server plugin status: " + (hasPlugin ? "DETECTED" : "NOT DETECTED"));
+
+        if (changed && isFirstPingLog) {
+            isFirstPingLog = false;
+            Quickmark.log("Server plugin status: " + (hasPlugin ? "DETECTED" : "NOT DETECTED"));
+        }
     }
 
     public static boolean hasServerPlugin() {
         return serverHasPlugin;
     }
 
+    public static void sendPeriodicPing() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || !serverHasPlugin) return;
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastPingTime > PING_INTERVAL) {
+            sendPing();
+            lastPingTime = currentTime;
+        }
+    }
+
     /**
      * Sends a PING to detect if server has the Quickmark plugin.
      */
-    public static void checkServerPlugin() {
+    public static void sendPing() {
         if (ClientPlayNetworking.canSend(CHANNEL)) {
             try {
                 PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
                 buf.writeBytes("PING".getBytes(StandardCharsets.UTF_8));
                 ClientPlayNetworking.send(new QuickmarkPayload(buf));
             } catch (Exception e) {
-                Quickmark.LOGGER.warn("Failed to send plugin check: " + e.getMessage());
+                Quickmark.LOGGER.warn("Failed to send ping: " + e.getMessage());
             }
-        } else {
-            Quickmark.LOGGER.warn("Plugin channel not available, server likely doesn't have plugin");
         }
     }
 
@@ -151,19 +174,11 @@ public class NetworkSender {
             return;
         }
 
-        // Checking if an existing invitation has expired.
-        if (TeamManager.hasOutgoingInvitation(targetPlayerId)) {
-            if (TeamManager.isOutgoingInvitationExpired(targetPlayerId)) {
-                TeamManager.removeOutgoingInvitation(targetPlayerId);
-            } else {
-                Quickmark.LOGGER.warn("Invitation to {} is still pending", TeamManager.getPlayerName(targetPlayerId));
-                return;
-            }
-        }
-
         String targetName = TeamManager.getPlayerName(targetPlayerId);
 
         if (targetName != null) {
+            Quickmark.log("Sending invitation to " + targetName + " via " + (serverHasPlugin ? "plugin" : "chat"));
+
             if (serverHasPlugin) {
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
                 out.write('I');
@@ -174,9 +189,11 @@ public class NetworkSender {
                 PacketByteBuf buf = new PacketByteBuf(PacketByteBufs.create());
                 buf.writeBytes(encoded.getBytes(StandardCharsets.UTF_8));
                 ClientPlayNetworking.send(new QuickmarkPayload(buf));
+                Quickmark.LOGGER.debug("Sent invitation via plugin channel");
             } else {
                 String encoded = TeamSerializer.serializeInvitation(client.player.getUuid());
                 sendPrivateMessage(targetName, "quickmark://" + encoded);
+                Quickmark.LOGGER.debug("Sent invitation via chat");
             }
         } else {
             Quickmark.LOGGER.warn("Failed to get name for player ID: {}", targetPlayerId);
@@ -190,6 +207,8 @@ public class NetworkSender {
         String targetName = TeamManager.getPlayerName(targetPlayerId);
 
         if (targetName != null) {
+            Quickmark.log("Sending invitation response to " + targetName + " via " + (serverHasPlugin ? "plugin" : "chat"));
+
             if (serverHasPlugin) {
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
                 out.write('R');

@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import me.unknkriod.quickmark.gui.screen.TeamManagementScreen;
 import me.unknkriod.quickmark.network.NetworkSender;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
@@ -31,6 +32,12 @@ public class TeamCommand {
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandRegistryAccess registryAccess) {
         dispatcher.register(literal("qm")
+                .then(literal("gui")
+                        .executes(context -> {
+                            MinecraftClient.getInstance().setScreen(new TeamManagementScreen());
+                            return 1;
+                        })
+                )
                 .then(literal("invite")
                         .then(argument("player", StringArgumentType.word())
                                 .suggests(PLAYER_SUGGESTIONS)

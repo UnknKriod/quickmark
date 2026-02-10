@@ -21,7 +21,6 @@ public class TeamHudRenderer {
     private static final int HEAD_SIZE = 24;
     private static final int HEALTH_ICON_SIZE = 9;
     private static final int HEAD_PADDING = 4;
-    private static final int MAX_HEALTH = 20;
     private static final int HEALTH_TEXT_Y_OFFSET = 10; // Indentation between health lines
     private static final int NAME_HEALTH_SPACING = 2; // The difference between nickname and health
     private static final int HEAD_TEXT_SPACING = 8; // Horizontal text offset from the head
@@ -66,29 +65,7 @@ public class TeamHudRenderer {
 
         int centerY = y + (PLAYER_HEIGHT - HEAD_SIZE) / 2;
 
-        Identifier skinTexture = getSkinTexture(player.getPlayerId(), player.getPlayerName());
-        if (skinTexture != null) {
-            // Render player head (8x8 pixels from texture)
-            GuiComponent.drawTexture(context, skinTexture,
-                    x + HEAD_PADDING,
-                    centerY,
-                    8, 8,
-                    HEAD_SIZE, HEAD_SIZE,
-                    8, 8, 64, 64);
-
-            context.getMatrices().pushMatrix();
-            context.getMatrices().translate(0, 0);
-
-            // Render player hat layer (40x8 pixels from texture)
-            GuiComponent.drawTexture(context, skinTexture,
-                    x + HEAD_PADDING,
-                    centerY,
-                    40, 8,
-                    HEAD_SIZE, HEAD_SIZE,
-                    8, 8, 64, 64);
-
-            context.getMatrices().popMatrix();
-        }
+        renderHead(context, player.getPlayerId(), x + HEAD_PADDING, centerY, HEAD_SIZE);
 
         int textX = x + HEAD_SIZE + HEAD_TEXT_SPACING;
 
@@ -111,8 +88,10 @@ public class TeamHudRenderer {
             heartY = centerY + client.textRenderer.fontHeight + NAME_HEALTH_SPACING;
         }
 
-        boolean numericHealth = health > MAX_HEALTH;
-        boolean numericAbsorption = absorption > MAX_HEALTH;
+        float maxHealth = player.getMaxHealth();
+
+        boolean numericHealth = health > maxHealth;
+        boolean numericAbsorption = absorption > maxHealth;
 
         // Render regular health
         if (numericHealth) {
@@ -128,6 +107,32 @@ public class TeamHudRenderer {
             } else {
                 renderHearts(context, absorption, heartX, heartY + HEALTH_TEXT_Y_OFFSET, true);
             }
+        }
+    }
+
+    public static void renderHead(DrawContext context, UUID playerId, int x, int y, int size) {
+        Identifier skinTexture = getSkinTexture(playerId);
+        if (skinTexture != null) {
+            // Render player head (8x8 pixels from texture)
+            GuiComponent.drawTexture(context, skinTexture,
+                    x,
+                    y,
+                    8, 8,
+                    size, size,
+                    8, 8, 64, 64);
+
+            context.getMatrices().pushMatrix();
+            context.getMatrices().translate(0, 0);
+
+            // Render player hat layer (40x8 pixels from texture)
+            GuiComponent.drawTexture(context, skinTexture,
+                    x,
+                    y,
+                    40, 8,
+                    size, size,
+                    8, 8, 64, 64);
+
+            context.getMatrices().popMatrix();
         }
     }
 
@@ -166,7 +171,7 @@ public class TeamHudRenderer {
     /**
      * Renders health in numeric format with icon
      */
-    private static void renderNumericSingle(DrawContext context, Identifier icon, float value, int startX, int startY) {
+    public static void renderNumericSingle(DrawContext context, Identifier icon, float value, int startX, int startY) {
         MinecraftClient client = MinecraftClient.getInstance();
 
         int color = ColorHelper.getArgb(255, 243, 243, 243);
@@ -193,7 +198,7 @@ public class TeamHudRenderer {
                 color, false);
     }
 
-    private static Identifier getSkinTexture(UUID playerId, String playerName) {
+    private static Identifier getSkinTexture(UUID playerId) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.getNetworkHandler() == null) return null;
 

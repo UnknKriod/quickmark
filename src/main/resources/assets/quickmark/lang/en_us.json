@@ -20,5 +20,27 @@
   "quickmark.tooltip.danger.line1": "DANGER!",
   "quickmark.tooltip.line2": "Click the middle mouse button to delete",
   "quickmark.info.invited.title": "Joining the team",
-  "quickmark.info.invited.message": "%s joined your group"
+  "quickmark.info.invited.message": "%s joined your group",
+
+  "key.quickmark.open_team_gui": "Open Team GUI",
+  "quickmark.gui.title": "Team Management",
+  "quickmark.gui.team_members": "Team Members",
+  "quickmark.gui.online_players": "Online Players",
+  "quickmark.gui.invitations": "Invitations",
+  "quickmark.gui.leave_team": "Leave Team",
+  "quickmark.gui.no_team_members": "No team members",
+  "quickmark.gui.no_players_online": "No other players online",
+  "quickmark.gui.player_not_found": "Player not found",
+  "quickmark.gui.already_in_team": "Player is already in team",
+  "quickmark.gui.invite_pending": "Invitation pending",
+  "quickmark.gui.invite_sent": "Invitation sent to %s",
+  "quickmark.gui.no_invitations": "No invitations",
+  "quickmark.gui.invite": "Invite",
+  "quickmark.gui.accept": "Accept",
+  "quickmark.gui.decline": "Decline",
+  "quickmark.gui.cancel": "Cancel",
+  "quickmark.gui.close": "Close",
+  "quickmark.gui.search": "Search player...",
+  "quickmark.gui.leader_instructions": "You are the team leader. You can invite other players.",
+  "quickmark.gui.cannot_leave_as_leader": "As leader, promote someone before leaving"
 }

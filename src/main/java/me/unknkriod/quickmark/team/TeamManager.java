@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.ColorHelper;
 
 import java.util.*;
@@ -26,7 +27,20 @@ public class TeamManager {
     private static final Map<UUID, String> pendingIncomingInvitations = new ConcurrentHashMap<>();
 
     private static final Map<UUID, Long> outgoingInvitationTimestamps = new ConcurrentHashMap<>();
-    private static final long OUTGOING_INVITATION_TIMEOUT = 5000; // 5 seconds
+    private static final long OUTGOING_INVITATION_TIMEOUT = 10000; // 10 seconds
+
+    private static class CacheEntry {
+        String name;
+        long timestamp;
+
+        private CacheEntry(String name, long timestamp) {
+            this.name = name;
+            this.timestamp = timestamp;
+        }
+    }
+
+    private static final Map<UUID, CacheEntry> playerNameCache = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION = 30000; // 30 секунд
 
     private static final Set<UUID> knownPlayers = new HashSet<>();
 
@@ -71,6 +85,7 @@ public class TeamManager {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             knownPlayers.clear();
             clearAllInvitations();
+            playerNameCache.clear();
         });
     }
 
@@ -133,7 +148,7 @@ public class TeamManager {
         }
     }
 
-    private static void setLeaderQuietly(UUID newLeaderId) {
+    public static void setLeaderQuietly(UUID newLeaderId) {
         leaderId = newLeaderId;
         ensureLeaderFirst();
         Quickmark.log("New team leader: " + getPlayerName(newLeaderId));
@@ -194,16 +209,74 @@ public class TeamManager {
      * Retrieves player name from team or network handler if available.
      */
     public static String getPlayerName(UUID playerId) {
-        TeamPlayer player = getPlayerById(playerId);
-        if (player != null) return player.getPlayerName();
+        String cachedName = getCachedName(playerId);
+        if (cachedName != null) {
+            return cachedName;
+        }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.getNetworkHandler() != null) {
-            var entry = client.getNetworkHandler().getPlayerListEntry(playerId);
-            if (entry != null) return entry.getProfile().getName();
+        String name = findPlayerName(playerId);
+        if (name != null) {
+            cachePlayerName(playerId, name);
+        }
+
+        return name;
+    }
+
+    private static String getCachedName(UUID playerId) {
+        CacheEntry entry = playerNameCache.get(playerId);
+
+        if (entry == null) {
+            return null;
+        }
+
+        boolean isCacheValid = System.currentTimeMillis() - entry.timestamp < CACHE_DURATION;
+        return isCacheValid ? entry.name : null;
+    }
+
+    private static void cachePlayerName(UUID playerId, String name) {
+        if (name == null) {
+            return;
+        }
+
+        playerNameCache.put(playerId, new CacheEntry(name, System.currentTimeMillis()));
+    }
+
+    private static String findPlayerName(UUID playerId) {
+        TeamPlayer player = getPlayerById(playerId);
+        if (player != null) {
+            return player.getPlayerName();
+        }
+
+        String onlineName = findOnlinePlayerName(playerId);
+        if (onlineName != null) {
+            return onlineName;
+        }
+
+        String invitationName = findInvitationName(playerId);
+        if (invitationName != null) {
+            return invitationName;
         }
 
         return null;
+    }
+
+    private static String findOnlinePlayerName(UUID playerId) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.getNetworkHandler() == null) {
+            return null;
+        }
+
+        return client.getNetworkHandler().getPlayerList().stream()
+                .filter(entry -> playerId.equals(entry.getProfile().getId()))
+                .map(entry -> entry.getProfile().getName())
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String findInvitationName(UUID playerId) {
+        String name = pendingOutgoingInvitations.get(playerId);
+        return name != null ? name : pendingIncomingInvitations.get(playerId);
     }
 
     /**
@@ -223,6 +296,7 @@ public class TeamManager {
                     TeamPlayer teamPlayer = getPlayerById(playerId);
                     if (teamPlayer != null) {
                         teamPlayer.setHealth((int) playerEntity.getHealth());
+                        teamPlayer.setMaxHealth((int) playerEntity.getMaxHealth());
                         teamPlayer.setAbsorption(playerEntity.getAbsorptionAmount());
                     }
                 }
@@ -239,33 +313,45 @@ public class TeamManager {
 
         UUID selfId = player.getUuid();
 
-        if (selfId.equals(targetPlayerId)) {
-            Quickmark.LOGGER.warn("You can't invite yourself.");
-            return;
-        }
-
-        if (!isLeader(selfId)) {
-            Quickmark.LOGGER.warn("Only the leader can invite players.");
-            return;
-        }
-
-        if (pendingOutgoingInvitations.containsKey(targetPlayerId)) {
-            Quickmark.LOGGER.warn("You have already sent an invitation to this player.");
-            return;
-        }
-
-        if (pendingIncomingInvitations.containsKey(targetPlayerId)) {
-            Quickmark.LOGGER.warn("This player has already sent you an invitation. Please respond to it first.");
-            return;
-        }
-
+        // Check if player is online
         String targetName = getPlayerName(targetPlayerId);
-        if (targetName != null) {
-            pendingOutgoingInvitations.put(targetPlayerId, targetName);
-            outgoingInvitationTimestamps.put(targetPlayerId, System.currentTimeMillis());
-            NetworkSender.sendInvitation(targetPlayerId);
-            Quickmark.log("Invited: " + targetName);
+        if (targetName == null) {
+            player.sendMessage(Text.literal("§cPlayer not found or offline"), false);
+            return;
         }
+
+        // Check if inviting self
+        if (selfId.equals(targetPlayerId)) {
+            player.sendMessage(Text.literal("§cYou cannot invite yourself"), false);
+            return;
+        }
+
+        // Check if sender is leader
+        if (!isLeader(selfId)) {
+            player.sendMessage(Text.literal("§cOnly the team leader can invite players"), false);
+            return;
+        }
+
+        // Check if player is already in team
+        if (getPlayerById(targetPlayerId) != null) {
+            player.sendMessage(Text.literal("§cPlayer is already in your team"), false);
+            return;
+        }
+
+        if (hasOutgoingInvitation(targetPlayerId)) {
+            player.sendMessage(Text.literal("You have already sent an invitation to this player."), false);
+            return;
+        }
+
+        if (hasIncomingInvitation(targetPlayerId)) {
+            player.sendMessage(Text.literal("This player has already sent you an invitation. Please respond to it first."), false);
+            return;
+        }
+
+        pendingOutgoingInvitations.put(targetPlayerId, targetName);
+        outgoingInvitationTimestamps.put(targetPlayerId, System.currentTimeMillis());
+        NetworkSender.sendInvitation(targetPlayerId);
+        Quickmark.log("Invited: " + targetName);
     }
 
     public static void addIncomingInvitation(UUID senderId, String senderName) {
@@ -374,7 +460,18 @@ public class TeamManager {
     }
 
     public static boolean hasOutgoingInvitation(UUID playerId) {
-        return pendingOutgoingInvitations.containsKey(playerId);
+        if (!pendingOutgoingInvitations.containsKey(playerId)) {
+            return false;
+        }
+
+        long remainingTime = getRemainingTimeForOutgoingInvitation(playerId);
+        if (remainingTime <= 0) {
+            pendingOutgoingInvitations.remove(playerId);
+            outgoingInvitationTimestamps.remove(playerId);
+            return false;
+        }
+
+        return true;
     }
 
     public static boolean hasIncomingInvitation(UUID playerId) {
@@ -399,6 +496,68 @@ public class TeamManager {
         long elapsed = System.currentTimeMillis() - sendTime;
         long remaining = OUTGOING_INVITATION_TIMEOUT - elapsed;
         return Math.max(0, remaining);
+    }
+
+    /**
+     * Returns a map of outgoing invitations with the remaining time in milliseconds
+     * @return Map<Player's UUID, Pair<player's name, remaining time>>
+     */
+    public static Map<UUID, Map.Entry<String, Long>> getOutgoingInvitationsWithTime() {
+        Map<UUID, Map.Entry<String, Long>> result = new HashMap<>();
+
+        long currentTime = System.currentTimeMillis();
+
+        for (Map.Entry<UUID, String> entry : pendingOutgoingInvitations.entrySet()) {
+            UUID playerId = entry.getKey();
+            String playerName = entry.getValue();
+
+            Long sendTime = outgoingInvitationTimestamps.get(playerId);
+            if (sendTime == null) continue;
+
+            long elapsed = currentTime - sendTime;
+            long remaining = OUTGOING_INVITATION_TIMEOUT - elapsed;
+
+            if (remaining > 0) {
+                result.put(playerId, new AbstractMap.SimpleEntry<>(playerName, remaining));
+            } else {
+                pendingOutgoingInvitations.remove(playerId);
+                outgoingInvitationTimestamps.remove(playerId);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Passes leadership to the specified player (only if the current caller is the leader)
+     * @param newLeaderId The UUID of the player we want to promote to the leader
+     * @return String message to display (null if no message, empty string for success without message)
+     */
+    public static String promotePlayer(UUID newLeaderId) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return "Error: Client player is null";
+
+        UUID currentLeader = leaderId;
+        UUID selfId = client.player.getUuid();
+
+        if (!selfId.equals(currentLeader)) {
+            return "§cOnly the current leader can promote another player";
+        }
+
+        TeamPlayer target = getPlayerById(newLeaderId);
+        if (target == null) {
+            return "§cCannot promote: player not in team";
+        }
+
+        if (newLeaderId.equals(selfId)) {
+            return "§cYou are already the leader";
+        }
+
+        setLeaderQuietly(newLeaderId);
+        ensureLeaderFirst();
+        NetworkSender.sendTeamUpdate();
+
+        return "§aLeadership transferred to " + target.getPlayerName();
     }
 
     /**

@@ -2,6 +2,7 @@ package me.unknkriod.quickmark;
 
 import me.unknkriod.quickmark.network.ServerNetworking;
 import net.fabricmc.api.DedicatedServerModInitializer;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,5 +19,9 @@ public class QuickmarkServer implements DedicatedServerModInitializer {
         LOGGER.info("QuickMark server mod initialized!");
         ServerNetworking.initialize();
         ServerNetworking.registerTickHandler();
+
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ServerNetworking.cleanupPlayer(handler.player.getUuid());
+        });
     }
 }

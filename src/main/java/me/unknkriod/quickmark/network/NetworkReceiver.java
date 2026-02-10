@@ -33,10 +33,25 @@ public class NetworkReceiver {
     private static final Pattern AUTH_PATTERN =
             Pattern.compile("quickmark-auth://(REQ|ACK):([0-9A-Za-z!#$%&()*+\\-;<=>?@^_`{|}~]+)");
 
-    private static final Set<UUID> processedResponses = new HashSet<>();
+    private static final long RESPONSE_TIMEOUT = 60000; // 1 minute
+
+    private static class ProcessedResponse {
+        UUID uuid;
+        long timestamp;
+
+        private ProcessedResponse(UUID senderUuid, long timestamp) {
+            this.uuid = senderUuid;
+            this.timestamp = timestamp;
+        }
+    }
+
+    private static final Set<ProcessedResponse> processedResponses = new HashSet<>();
     private static final Set<String> processedAuthTokens = new HashSet<>();
     private static final Set<UUID> authorizedPlayers = new HashSet<>();
     private static final Map<UUID, String> pendingAuthTokens = new HashMap<>();
+
+    private static long lastCleanupResponsesTime = 0;
+    private static final int CLEANUP_RESPONSES_INTERVAL = 20000; // 20 seconds
 
     /**
      * Processes plugin channel messages.
@@ -49,7 +64,6 @@ public class NetworkReceiver {
 
         if ("PONG".equals(received)) {
             NetworkSender.setServerHasPlugin(true);
-            Quickmark.log("Server plugin detected - using plugin messaging system");
             return;
         }
 
@@ -79,7 +93,7 @@ public class NetworkReceiver {
                 if (data.length >= 33) {
                     UUID inviterId = Base85Encoder.bytesToUuid(data, 17); // 1 + 16 (target) + 16 (sender)
                     handleInvitationData(inviterId);
-                };
+                }
             }
             case 'R' -> {
                 if (data.length >= 34) {
@@ -192,7 +206,7 @@ public class NetworkReceiver {
     private static void handleInvitationResponseData(UUID responderId, String encoded) {
         TeamSerializer.InvitationResponse response = TeamSerializer.deserializeInvitationResponse(encoded);
         if (response != null && !processedResponses.contains(response.senderId)) {
-            processedResponses.add(response.senderId);
+            processedResponses.add(new ProcessedResponse(response.senderId, System.currentTimeMillis()));
             String responderName = TeamManager.getPlayerName(responderId);
             if (responderName != null) {
                 if (response.accepted) {
@@ -250,5 +264,15 @@ public class NetworkReceiver {
         authorizedPlayers.clear();
         processedAuthTokens.clear();
         pendingAuthTokens.clear();
+    }
+
+    public static void cleanupExpiredResponses() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastCleanupResponsesTime > CLEANUP_RESPONSES_INTERVAL) {
+            processedResponses.removeIf(entry ->
+                    currentTime - entry.timestamp > RESPONSE_TIMEOUT
+            );
+            lastCleanupResponsesTime = currentTime;
+        }
     }
 }
