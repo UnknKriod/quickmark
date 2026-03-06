@@ -59,6 +59,23 @@ When you're in a team, a HUD appears showing the health of all teammates.
 
 <img height="75%" width="75%" src="assets/invitation.gif">
 
+## GUI
+
+#### Main tab:
+<img width="75%" height="75%" alt="main_tab" src="https://github.com/user-attachments/assets/e37a8130-82e7-43d6-aa8b-d72ac8c187a2" />
+
+#### The main tab with teammates:
+<img width="75%" height="75%" alt="main_tab_with_teammates" src="https://github.com/user-attachments/assets/2aa8b5ca-598c-4104-acb9-093e945b5e21" />
+
+#### The invitations tab:
+<img width="75%" height="75%" alt="invite_tab" src="https://github.com/user-attachments/assets/1dddb5aa-d101-4cea-87c3-e844d1fbd8c4" />
+
+#### The incoming invitations tab:
+<img width="75%" height="75%" alt="invites_tab_incoming" src="https://github.com/user-attachments/assets/eb9ce618-b4b6-4d8e-bf97-98dba5a5f2e9" />
+
+#### The outgoing invitations tab:
+<img width="75%" height="75%" alt="invites_tab_outgoing" src="https://github.com/user-attachments/assets/5587ebc5-25f3-438d-b190-c0af617cfac2" />
+
 # 🛠️ For Server Administrators
 
 QuickMark uses two communication methods:
@@ -70,11 +87,12 @@ QuickMark uses two communication methods:
 
 ## Known Issues
 
+* The problem with leaving the team (the status is not updated on one of the sides).
+* The Leave Team button appears in the GUI for the leader.
 * The marker icon experience a slight positional offset from the exact center of the crosshair, depending on the camera's pitch and yaw.
 
 ## Plans
 
-* GUI for inviting and managing players.
 * Some overlays from Fortnite (similar to the invitation overlay)
 * Add a distance check to set the marker, because now if I want to take a block with the mouse wheel, the marker is set on this block
 
