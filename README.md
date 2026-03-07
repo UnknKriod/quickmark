@@ -94,7 +94,6 @@ QuickMark uses two communication methods:
 ## Plans
 
 * Some overlays from Fortnite (similar to the invitation overlay)
-* Add a distance check to set the marker, because now if I want to take a block with the mouse wheel, the marker is set on this block
 
 # ⭐ Inspiration
 
