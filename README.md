@@ -87,8 +87,7 @@ QuickMark uses two communication methods:
 
 ## Known Issues
 
-* The problem with leaving the team (the status is not updated on one of the sides).
-* The Leave Team button appears in the GUI for the leader.
+\-
 
 ## Plans
 

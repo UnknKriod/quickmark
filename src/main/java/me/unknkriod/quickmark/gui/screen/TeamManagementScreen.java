@@ -103,13 +103,18 @@ public class TeamManagementScreen extends Screen {
             searchField.setVisible(currentTab == Tab.PLAYERS);
         }
         if (leaveButton != null) {
-            List<TeamPlayer> members = TeamManager.getTeamMembers();
-            leaveButton.visible = currentTab == TEAM && members.size() > 1;
+            // The leader of a multi-member team cannot leave without promoting someone else,
+            // so the button is only offered when leaving is actually possible.
+            leaveButton.visible = currentTab == TEAM && TeamManager.canLeaveTeam();
         }
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Team state can change while the screen is open (promotions, kicks, network updates),
+        // so the conditional widgets are refreshed every frame instead of only on init.
+        updateVisibility();
+
         int centerX = width / 2;
         int centerY = height / 2;
         int panelLeft = centerX - panelWidth / 2;
@@ -233,17 +238,14 @@ public class TeamManagementScreen extends Screen {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        List<TeamPlayer> members = TeamManager.getTeamMembers();
-        boolean isLeader = TeamManager.isLeader(client.player.getUuid());
-
-        if (isLeader && members.size() > 1) {
-            client.player.sendMessage(
-                    Text.literal("Promote someone else to leader before leaving"), false);
+        if (!TeamManager.canLeaveTeam()) {
+            client.player.sendMessage(Text.translatableWithFallback(
+                    "quickmark.gui.cannot_leave_as_leader",
+                    "Promote someone else to leader before leaving"), false);
             return;
         }
 
-        TeamManager.removePlayer(client.player.getUuid());
-        NetworkSender.sendTeamUpdate();
+        TeamManager.leaveTeam();
         showStatusMessage("Left the team");
         client.player.playSound(SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
         close();

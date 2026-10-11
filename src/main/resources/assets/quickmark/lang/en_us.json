@@ -6,6 +6,8 @@
   "quickmark.command.invite.sent": "Invitation sent to %s",
   "quickmark.command.invite.not_found": "Player %s not found",
   "quickmark.command.leave.success": "You left the team",
+  "quickmark.command.leave.no_team": "You are not in a team",
+  "quickmark.command.leave.not_allowed": "Promote someone else to leader before leaving",
   "quickmark.command.not_leader": "Only team leader can invite players",
   "quickmark.command.invite.pending": "The invitation for %s has already been sent. Try again in %d seconds",
   "quickmark.command.invite.conflict": "Player %s has already sent you an invitation. Respond it first",

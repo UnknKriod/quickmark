@@ -3,6 +3,7 @@ package me.unknkriod.quickmark.team;
 import me.unknkriod.quickmark.Quickmark;
 import me.unknkriod.quickmark.gui.overlay.InviteOverlayRenderer;
 import me.unknkriod.quickmark.gui.overlay.SuccessOverlayRenderer;
+import me.unknkriod.quickmark.mark.MarkManager;
 import me.unknkriod.quickmark.network.NetworkSender;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -68,6 +69,8 @@ public class TeamManager {
             for (UUID uuid : new HashSet<>(knownPlayers)) {
                 if (!current.contains(uuid)) {
                     removePlayer(uuid);
+                    // The owner is gone, so their marks can no longer be removed by them.
+                    MarkManager.removeMarksOfPlayer(uuid);
                     knownPlayers.remove(uuid);
                 }
             }
@@ -148,6 +151,145 @@ public class TeamManager {
         }
     }
 
+    /**
+     * Leaves the current team.
+     * <p>
+     * The local player is removed from the roster, the remaining members are notified with the
+     * updated roster, and the local state is reset to a solo team. Resetting to a solo team is
+     * what prevents the tick handler from re-adding the local player to the team they just left.
+     *
+     * @return {@code true} if the player was in a multi-member team and left it
+     */
+    public static boolean leaveTeam() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) return false;
+
+        UUID selfId = player.getUuid();
+        boolean wasInTeam = teamMembers.size() > 1;
+
+        // Drop our own marks first. Marks live outside the roster, so removing ourselves from the
+        // roster below would make resetToSoloTeam() treat our ex-teammates as the ones who left and
+        // wipe their marks as well.
+        MarkManager.removeMarksOfPlayer(selfId);
+
+        if (wasInTeam) {
+            // Notify the remaining members while the roster is still known.
+            removePlayer(selfId);
+            NetworkSender.sendTeamUpdate();
+            clearAllInvitations();
+        }
+
+        resetSoloRoster();
+        return wasInTeam;
+    }
+
+    /**
+     * Replaces the roster with just the local player, without touching anyone's marks.
+     * Used after a leave, where the marks of the departing player are already handled and the
+     * remaining players did not leave.
+     */
+    private static void resetSoloRoster() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            clearTeam();
+            return;
+        }
+
+        UUID selfId = player.getUuid();
+        teamMembers.clear();
+        teamMembers.add(new TeamPlayer(selfId, player.getName().getLiteralString()));
+        leaderId = selfId;
+    }
+
+    /**
+     * Whether the local player is allowed to leave the current team.
+     * The leader of a multi-member team has to promote someone else first.
+     */
+    public static boolean canLeaveTeam() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return false;
+        return teamMembers.size() > 1 && !isLeader(client.player.getUuid());
+    }
+
+    /**
+     * How an incoming roster update relates to the local player's team.
+     */
+    public enum RosterRelation {
+        /** The roster lists the local player, so it can be applied as-is. */
+        MEMBER,
+        /** The roster lists players we were teamed with but not us: we were removed. */
+        REMOVED,
+        /** Unrelated roster (another team on the server): not ours to apply. */
+        UNRELATED
+    }
+
+    /**
+     * Classifies an incoming roster update against the local player and the players we currently
+     * know. Kept free of client state so the decision can be unit tested.
+     *
+     * @param members        the roster received from the network
+     * @param selfId         the local player's UUID
+     * @param knownMemberIds UUIDs of the players currently on our roster
+     */
+    public static RosterRelation classifyRoster(List<TeamPlayer> members, UUID selfId,
+                                                Collection<UUID> knownMemberIds) {
+        boolean containsSelf = false;
+        boolean sharesKnownMember = false;
+
+        for (TeamPlayer member : members) {
+            UUID memberId = member.getPlayerId();
+            if (selfId.equals(memberId)) {
+                containsSelf = true;
+            } else if (knownMemberIds.contains(memberId)) {
+                sharesKnownMember = true;
+            }
+        }
+
+        if (containsSelf) return RosterRelation.MEMBER;
+        if (sharesKnownMember) return RosterRelation.REMOVED;
+        return RosterRelation.UNRELATED;
+    }
+
+    /**
+     * Replaces the local roster with a team containing only the local player, dropping the marks of
+     * the players who are no longer on the roster.
+     * <p>
+     * Used when the local player is the one being removed from a team they cannot see the rest of:
+     * they are gone, so the marks they were holding for that team go with them.
+     */
+    public static void resetToSoloTeam() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            clearTeam();
+            return;
+        }
+
+        UUID selfId = player.getUuid();
+
+        // Everyone except us is leaving our roster, so their marks are no longer ours to show.
+        for (UUID otherId : findOthers(teamMembers, selfId)) {
+            MarkManager.removeMarksOfPlayer(otherId);
+        }
+
+        resetSoloRoster();
+    }
+
+    /**
+     * Members of the roster other than the local player, in roster order.
+     * Kept free of client and mark state so the decision can be unit tested.
+     */
+    public static List<UUID> findOthers(List<TeamPlayer> roster, UUID selfId) {
+        List<UUID> others = new ArrayList<>();
+
+        for (TeamPlayer member : roster) {
+            if (!selfId.equals(member.getPlayerId())) {
+                others.add(member.getPlayerId());
+            }
+        }
+
+        return others;
+    }
+
     public static void setLeaderQuietly(UUID newLeaderId) {
         leaderId = newLeaderId;
         ensureLeaderFirst();
@@ -164,6 +306,10 @@ public class TeamManager {
 
     /**
      * Sets the team members and leader, ensuring no duplicates.
+     * <p>
+     * Members who are no longer in the new roster are treated as gone, so their marks are dropped:
+     * this covers leaving, being kicked, and disconnecting in one place, whatever the roster
+     * update came from.
      */
     public static void setTeamMembers(List<TeamPlayer> members, UUID leaderId) {
         Set<UUID> existingIds = new HashSet<>();
@@ -176,10 +322,35 @@ public class TeamManager {
             }
         }
 
+        for (UUID departedId : findDepartedMembers(teamMembers, existingIds)) {
+            MarkManager.removeMarksOfPlayer(departedId);
+        }
+
         teamMembers.clear();
         teamMembers.addAll(uniqueMembers);
         TeamManager.leaderId = leaderId;
         ensureLeaderFirst();
+    }
+
+    /**
+     * Players who were on the previous roster but are absent from the incoming one.
+     * <p>
+     * Kept free of client and mark state so the decision can be unit tested.
+     *
+     * @param previous   the roster as it was before the update
+     * @param incomingIds UUIDs present in the incoming roster
+     * @return UUIDs that left the roster
+     */
+    public static List<UUID> findDepartedMembers(List<TeamPlayer> previous, Set<UUID> incomingIds) {
+        List<UUID> departed = new ArrayList<>();
+
+        for (TeamPlayer member : previous) {
+            if (!incomingIds.contains(member.getPlayerId())) {
+                departed.add(member.getPlayerId());
+            }
+        }
+
+        return departed;
     }
 
     public static boolean isPlayerInTeam(String playerName) {

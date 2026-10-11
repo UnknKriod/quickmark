@@ -6,6 +6,8 @@
   "quickmark.command.invite.sent": "Приглашение отправлено %s",
   "quickmark.command.invite.not_found": "Игрок %s не найден",
   "quickmark.command.leave.success": "Вы вышли из команды",
+  "quickmark.command.leave.no_team": "Вы не в команде",
+  "quickmark.command.leave.not_allowed": "Назначьте нового лидера, прежде чем выйти",
   "quickmark.command.not_leader": "Только лидер команды может приглашать игроков",
   "quickmark.command.invite.pending": "Приглашение для %s уже отправлено. Повторите через %d секунд",
   "quickmark.command.invite.conflict": "Игрок %s уже отправил вам приглашение. Ответьте на него сначала",
@@ -37,4 +39,6 @@
   "quickmark.gui.cancel": "Отменить",
   "quickmark.gui.close": "Закрыть",
   "quickmark.gui.leader_instructions": "Вы лидер команды. Вы можете приглашать других игроков."
+,
+  "quickmark.gui.cannot_leave_as_leader": "Как лидер, назначьте другого игрока, прежде чем выйти"
 }

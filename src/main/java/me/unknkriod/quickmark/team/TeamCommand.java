@@ -7,7 +7,6 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import me.unknkriod.quickmark.gui.screen.TeamManagementScreen;
-import me.unknkriod.quickmark.network.NetworkSender;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -138,8 +137,20 @@ public class TeamCommand {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) return;
 
-        TeamManager.removePlayer(player.getUuid());
-        NetworkSender.sendTeamUpdate();
-        player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.success", "You have left the team"), false);
+        if (TeamManager.getTeamMembers().size() <= 1) {
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.no_team",
+                    "You are not in a team"), false);
+            return;
+        }
+
+        if (!TeamManager.canLeaveTeam()) {
+            player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.not_allowed",
+                    "Promote someone else to leader before leaving"), false);
+            return;
+        }
+
+        TeamManager.leaveTeam();
+        player.sendMessage(Text.translatableWithFallback("quickmark.command.leave.success",
+                "You have left the team"), false);
     }
 }

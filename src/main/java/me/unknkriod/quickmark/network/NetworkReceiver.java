@@ -9,6 +9,7 @@ import me.unknkriod.quickmark.gui.overlay.InfoOverlayRenderer;
 import me.unknkriod.quickmark.mark.MarkType;
 import me.unknkriod.quickmark.serializers.MarkSerializer;
 import me.unknkriod.quickmark.team.TeamManager;
+import me.unknkriod.quickmark.team.TeamPlayer;
 import me.unknkriod.quickmark.serializers.TeamSerializer;
 import me.unknkriod.quickmark.mark.Mark;
 import me.unknkriod.quickmark.mark.MarkManager;
@@ -221,8 +222,27 @@ public class NetworkReceiver {
 
     private static void handleTeamUpdateData(String encoded) {
         TeamSerializer.TeamData teamData = TeamSerializer.deserializeTeamUpdate(encoded);
-        if (teamData != null) {
-            TeamManager.setTeamMembers(teamData.members, teamData.leaderId);
+        if (teamData == null) return;
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return;
+
+        UUID selfId = client.player.getUuid();
+        List<UUID> knownMemberIds = TeamManager.getTeamMembers().stream()
+                .map(TeamPlayer::getPlayerId)
+                .toList();
+
+        switch (TeamManager.classifyRoster(teamData.members, selfId, knownMemberIds)) {
+            case MEMBER -> TeamManager.setTeamMembers(teamData.members, teamData.leaderId);
+            case REMOVED -> {
+                // The roster lists players we were teamed with but no longer lists us, so this is
+                // our own team telling us we were removed from it. Dropping back to a solo team is
+                // what keeps the tick handler from re-adding us on the next tick.
+                TeamManager.resetToSoloTeam();
+                Quickmark.log("You are no longer part of the team");
+            }
+            // Roster for another team on the server: not ours to apply.
+            case UNRELATED -> Quickmark.LOGGER.debug("Ignoring team update for an unrelated roster");
         }
     }
 
