@@ -1,7 +1,6 @@
 package me.unknkriod.quickmark.network;
 
 import io.netty.buffer.Unpooled;
-import me.unknkriod.quickmark.Quickmark;
 import me.unknkriod.quickmark.network.QuickmarkPayload;
 import me.unknkriod.quickmark.utils.Base85Encoder;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -22,9 +21,11 @@ import java.util.UUID;
 /**
  * Server-side networking handler for Quickmark.
  * Receives C2S packets, detects mod presence via pings, and broadcasts/relays messages to authorized players.
+ * <p>
+ * Runs on the dedicated server, so it must not reference the client entry point {@code Quickmark}.
  */
 public class ServerNetworking {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Quickmark.MOD_ID);
+    private static final Logger LOGGER = LoggerFactory.getLogger("quickmark");
     private static final Map<UUID, Long> playerLastPing = new HashMap<>();
     private static final Map<UUID, String> playerNames = new HashMap<>();
 
