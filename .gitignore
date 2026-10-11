@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# Minecraft / Fabric run directories
+run/
+run1/
+logs/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
