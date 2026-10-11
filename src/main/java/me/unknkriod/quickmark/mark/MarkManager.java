@@ -48,6 +48,20 @@ public class MarkManager {
     }
 
     /**
+     * Removes every mark owned by the given player.
+     * <p>
+     * Used when the owner leaves: a mark only means something while its owner is around to have
+     * placed it, so marks left behind by a player who disconnected or quit the team would linger
+     * on everyone else's HUD with nobody to remove them. Removal is silent — the owner leaving is
+     * not an in-world event, so no particles or ping sound are played at the mark.
+     *
+     * @param playerId owner whose marks should be dropped
+     */
+    public static void removeMarksOfPlayer(UUID playerId) {
+        playerMarks.remove(playerId);
+    }
+
+    /**
      * Creates a new mark at the raycasted block position if valid.
      */
     public static void createMark(MarkType type, UUID playerId) {
