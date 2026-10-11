@@ -115,9 +115,12 @@ public class MarkRenderer {
 
         if (result == null) return;
 
+        // Anchor on the camera's (frame-interpolated) height rather than the
+        // player's tick-based eye height: the latter only updates 20 times per
+        // second, so the icon visibly snaps while the player changes altitude.
         Vec3d iconPosition = new Vec3d(
                 markBlockPos.getX() + 0.5,
-                client.player.getEyeY(),
+                cameraPos.y,
                 markBlockPos.getZ() + 0.5
         );
 
@@ -145,9 +148,11 @@ public class MarkRenderer {
             BlockPos markBlockPos = mark.getPosition();
             Vec3d markPos = new Vec3d(markBlockPos.getX() + 0.5, markBlockPos.getY() + 0.5, markBlockPos.getZ() + 0.5);
 
+            // Same reason as the interactive icon: use the interpolated camera
+            // height so the icon stays put instead of snapping every tick.
             Vec3d projectedPos = new Vec3d(
                     markBlockPos.getX() + 0.5,
-                    client.player.getEyeY(),
+                    cameraPos.y,
                     markBlockPos.getZ() + 0.5
             );
 

@@ -3,13 +3,19 @@ package me.unknkriod.quickmark.gui.mark.utils;
 import me.unknkriod.quickmark.gui.mark.MarkRenderConfig;
 import me.unknkriod.quickmark.mark.Mark;
 import me.unknkriod.quickmark.mark.MarkType;
+import me.unknkriod.quickmark.mixin.GameRendererInvoker;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.GameRenderer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.world.RaycastContext;
+import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector4f;
 
 public class GeometryCalculator {
     private final MarkRenderConfig config;
@@ -169,48 +175,74 @@ public class GeometryCalculator {
     }
 
     /**
-     * Projects 3D world position to 2D screen coordinates
-     * Handles FOV calculations and camera transformations
+     * Projects a 3D world position to 2D screen coordinates.
+     *
+     * <p>This rebuilds the exact view-projection matrix the world is rendered
+     * with: the FOV (slider + sprint/death/water effects), the hurt tilt, the
+     * view bobbing, the camera rotation and the camera translation. The previous
+     * hand-rolled implementation computed horizontal/vertical angles with
+     * {@code asin}/{@code atan2} and mapped them <em>linearly</em> to pixels;
+     * that is only accurate right at the screen centre and drifts as the camera
+     * pitches/yaws. {@code GameRenderer#project(Vec3d)} fixes that, but it omits
+     * the hurt tilt and view bobbing, which makes markers drift while moving —
+     * hence the full rebuild here.</p>
+     *
+     * @return screen coordinates ({@code x}, {@code y}) with the distance from
+     *         the camera stored in {@code z}, or {@code null} when the position
+     *         is behind the camera or outside the view frustum.
      */
     public Vec3d projectToScreen(MinecraftClient client, Vec3d worldPos) {
-        Window window = client.getWindow();
-        int screenWidth = window.getScaledWidth();
-        int screenHeight = window.getScaledHeight();
-
-        double vFovRad = Math.toRadians(client.options.getFov().getValue());
-        double aspect = screenWidth / (double) screenHeight;
-        double hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect);
-
-        Camera camera = client.gameRenderer.getCamera();
+        GameRenderer gameRenderer = client.gameRenderer;
+        Camera camera = gameRenderer.getCamera();
         Vec3d cameraPos = camera.getPos();
-        Vec3d transformed = worldPos.subtract(cameraPos);
-        double distance = transformed.length();
-        if (distance < 0.01) return null;
 
-        Vec3d dir = transformed.normalize();
-        Vec3d forward = client.getCameraEntity().getRotationVector();
-        if (dir.dotProduct(forward) <= 0) return null;
-
-        Vec3d forwardHor = new Vec3d(forward.x, 0, forward.z);
-        double forwardHorLen = forwardHor.length();
-        if (forwardHorLen < 0.001) {
+        double distance = worldPos.distanceTo(cameraPos);
+        if (distance < 0.01) {
             return null;
         }
-        forwardHor = forwardHor.normalize();
-        Vec3d dirHor = new Vec3d(dir.x, 0, dir.z);
-        double dot = forwardHor.dotProduct(dirHor);
-        double det = forwardHor.x * dirHor.z - forwardHor.z * dirHor.x;
-        double angleHor = Math.atan2(det, dot);
-        if (Math.abs(angleHor) > hFovRad / 2) return null;
 
-        double x = screenWidth / 2.0 + (angleHor / (hFovRad / 2.0)) * (screenWidth / 2.0);
+        GameRendererInvoker invoker = (GameRendererInvoker) gameRenderer;
+        float tickProgress = camera.getLastTickProgress();
 
-        double angleVert = Math.asin(dir.y) - Math.asin(forward.y);
-        if (Math.abs(angleVert) > vFovRad / 2) return null;
+        // Projection matrix, tilted and bobbed exactly like the rendered world.
+        Matrix4f projection = gameRenderer.getBasicProjectionMatrix(
+                invoker.invokeGetFov(camera, tickProgress, true));
 
-        double y = screenHeight / 2.0 - (angleVert / (vFovRad / 2.0)) * (screenHeight / 2.0);
+        MatrixStack viewTransforms = new MatrixStack();
+        invoker.invokeTiltViewWhenHurt(viewTransforms, tickProgress);
+        if (client.options.getBobView().getValue()) {
+            invoker.invokeBobView(viewTransforms, tickProgress);
+        }
+        projection.mul(viewTransforms.peek().getPositionMatrix());
 
-        return new Vec3d(x, y, distance);
+        // World -> camera space: move the camera to the origin, then rotate by
+        // the conjugate of the camera rotation (what Minecraft's renderer uses).
+        Matrix4f view = new Matrix4f()
+                .rotation(camera.getRotation().conjugate(new Quaternionf()))
+                .translate((float) -cameraPos.x, (float) -cameraPos.y, (float) -cameraPos.z);
+
+        Vector4f clip = projection.mul(view).transform(new Vector4f(
+                (float) worldPos.x, (float) worldPos.y, (float) worldPos.z, 1.0f
+        ));
+
+        // clip.w <= 0 means the point lies on or behind the camera plane.
+        if (clip.w() <= 0.0f) {
+            return null;
+        }
+
+        float ndcX = clip.x() / clip.w();
+        float ndcY = clip.y() / clip.w();
+
+        // Outside the visible frustum (normalized device coordinates).
+        if (Math.abs(ndcX) > 1.0f || Math.abs(ndcY) > 1.0f) {
+            return null;
+        }
+
+        Window window = client.getWindow();
+        double screenX = (ndcX * 0.5 + 0.5) * window.getScaledWidth();
+        double screenY = (0.5 - ndcY * 0.5) * window.getScaledHeight();
+
+        return new Vec3d(screenX, screenY, distance);
     }
 
     private float calculateTransparencyByDistance(double horizontalDistance) {

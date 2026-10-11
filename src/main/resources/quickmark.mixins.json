@@ -4,7 +4,8 @@
   "package": "me.unknkriod.quickmark.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "ChatFilterMixin"
+    "ChatFilterMixin",
+    "GameRendererInvoker"
   ],
   "injectors": {
     "defaultRequire": 1
