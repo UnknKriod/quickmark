@@ -7,6 +7,7 @@ import me.unknkriod.quickmark.gui.mark.utils.IconRenderData;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 
 import java.awt.Color;
@@ -115,8 +116,11 @@ public class IconRenderer {
     private void drawDistanceText(DrawContext context, IconRenderData iconData,
                                   int x, int y, int halfIconSize, float transparency, MinecraftClient client) {
         // Расстояние до луча, а не до иконки
-        double distance = geometryCalc.calculateDistanceToBeam(iconData.getCameraPos(), iconData.getMark().getPosition());
-        String distanceText = Math.round(distance) + "м";
+        double distance = geometryCalc.calculateDistanceToBeam(iconData.getCameraPos(),
+                iconData.getMark().getPosition(), iconData.getMark().getType());
+        long metres = Math.round(distance);
+        // Localised rather than a hardcoded "м", which showed Cyrillic on an English client.
+        Text distanceText = Text.translatableWithFallback("quickmark.mark.distance", metres + " m", metres);
         int textWidth = client.textRenderer.getWidth(distanceText);
 
         // Позиция текста под иконкой
@@ -140,37 +144,19 @@ public class IconRenderer {
         int outlineColor = (textAlpha << 24);
 
         // Рисуем текст с обводкой и прозрачностью
-        drawTextWithOutlineAndAlpha(context, client.textRenderer, distanceText, textX, textY, textColor, outlineColor, transparency);
-    }
-
-    private void drawTextWithOutlineAndAlpha(DrawContext context, TextRenderer textRenderer,
-                                             String text, int x, int y, int textColor, int outlineColor, float alpha) {
-        // Если прозрачность очень низкая, рисуем обычным способом
-        if (alpha < 0.5f) {
-            drawTextWithOutline(context, textRenderer, text, x, y, textColor, outlineColor);
-            return;
-        }
-
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                if (dx == 0 && dy == 0) continue;
-                context.drawText(textRenderer, text, x + dx, y + dy, outlineColor, false);
-            }
-        }
-        // Рисуем основной текст с альфа-каналом
-        context.drawText(textRenderer, text, x, y, textColor, false);
+        drawTextWithOutline(context, client.textRenderer, distanceText, textX, textY, textColor, outlineColor);
     }
 
     private void drawTextWithOutline(DrawContext context, TextRenderer textRenderer,
-                                     String text, int x, int y, int textColor, int outlineColor) {
-        // Рисуем обводку
+                                     Text text, int x, int y, int textColor, int outlineColor) {
+        // Обводка
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 if (dx == 0 && dy == 0) continue;
                 context.drawText(textRenderer, text, x + dx, y + dy, outlineColor, false);
             }
         }
-        // Рисуем основной текст
+        // Основной текст
         context.drawText(textRenderer, text, x, y, textColor, false);
     }
 }

@@ -81,13 +81,16 @@ public class MarkRenderer {
 
         if (beamHoveredMark != null) {
             renderInteractiveIcon(context, beamHoveredMark, cameraPos, lookDirection, client);
-
-            if (hoveredMark != null) {
-                TOOLTIP_RENDERER.drawTooltip(context, hoveredMark);
-            }
         }
 
         renderStaticIcons(context, marks, beamHoveredMark, cameraPos, client);
+
+        // Draw the tooltip only after the hovered mark is final. Drawing it before the static-icon
+        // pass let that pass reassign hoveredMark, so the tooltip named one mark while
+        // MouseHandler deleted another.
+        if (hoveredMark != null) {
+            TOOLTIP_RENDERER.drawTooltip(context, hoveredMark);
+        }
     }
 
     /**
@@ -156,7 +159,7 @@ public class MarkRenderer {
                     markBlockPos.getZ() + 0.5
             );
 
-            double distance = GEOMETRY_CALC.calculateDistanceToBeam(cameraPos, markBlockPos);
+            double distance = GEOMETRY_CALC.calculateDistanceToBeam(cameraPos, markBlockPos, mark.getType());
             float transparency = GEOMETRY_CALC.calculateStaticTransparency(cameraPos, markPos);
             float scale = GEOMETRY_CALC.calculateIconScale(distance);
 
@@ -178,6 +181,10 @@ public class MarkRenderer {
      * Checks if mouse is hovering over an icon for tooltip display
      */
     private static void checkIconHover(IconRenderData iconData, MinecraftClient client) {
+        // First match wins. The interactive icon is checked before the static ones, so the mark
+        // being looked at is never shadowed by a static icon sitting near the crosshair.
+        if (hoveredMark != null) return;
+
         Vec3d screenPos = GEOMETRY_CALC.projectToScreen(client, iconData.getPosition());
         if (screenPos == null) return;
         int x = (int) screenPos.x;

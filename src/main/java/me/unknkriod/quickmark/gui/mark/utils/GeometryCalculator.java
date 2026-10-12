@@ -11,8 +11,6 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.world.RaycastContext;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
@@ -59,7 +57,7 @@ public class GeometryCalculator {
 
         // Calculate dynamic fade distance based on beam's visual width
         MinecraftClient client = MinecraftClient.getInstance();
-        double beamDist = calculateDistanceToBeam(cameraPos, markPos);
+        double beamDist = calculateDistanceToBeam(cameraPos, markPos, mark.getType());
         float fov = client.options.getFov().getValue();
         int screenW = client.getWindow().getWidth();
         double halfWidth = getBeamWorldHalfWidth(beamDist, fov, screenW, mark.getType());
@@ -113,16 +111,19 @@ public class GeometryCalculator {
      * Calculates 3D distance from camera to the nearest point on mark beam
      * Considers both horizontal distance and vertical alignment
      */
-    public double calculateDistanceToBeam(Vec3d cameraPos, BlockPos markPos) {
+    public double calculateDistanceToBeam(Vec3d cameraPos, BlockPos markPos, MarkType type) {
         double markX = markPos.getX() + 0.5;
         double markZ = markPos.getZ() + 0.5;
 
         double horizontalDistance = Math.sqrt(Math.pow(cameraPos.x - markX, 2) + Math.pow(cameraPos.z - markZ, 2));
 
-        double cameraY = cameraPos.y;
-        double closestY = Math.max(config.getDownRange(), Math.min(config.getMaxY(), cameraY));
+        // The beam hangs on the mark, so measure against the mark's own vertical extent rather
+        // than an absolute world Y range.
+        double beamBottom = markPos.getY() - config.getDownRange(type);
+        double beamTop = markPos.getY() + config.getUpRange(type);
+        double closestY = Math.max(beamBottom, Math.min(beamTop, cameraPos.y));
 
-        double verticalDistance = Math.abs(cameraY - closestY);
+        double verticalDistance = Math.abs(cameraPos.y - closestY);
         return Math.sqrt(horizontalDistance * horizontalDistance + verticalDistance * verticalDistance);
     }
 
@@ -147,31 +148,6 @@ public class GeometryCalculator {
         distance = Math.min(distance, config.getMaxScaleDistance());
         float factor = (float) (distance / config.getMaxScaleDistance());
         return config.getMaxIconScale() - factor * (config.getMaxIconScale() - config.getMinIconScale());
-    }
-
-    /**
-     * Checks if any part of the beam is visible by testing multiple points along its height
-     */
-    public boolean isBeamVisible(Vec3d cameraPos, Vec3d markPos) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) return false;
-
-        double markX = markPos.x;
-        double markZ = markPos.z;
-
-        double minY = Math.max(config.getDownRange(), cameraPos.y - 10);
-        double maxY = Math.min(config.getMaxY(), cameraPos.y + 20);
-
-        double step = 2.0;
-
-        for (double y = minY; y <= maxY; y += step) {
-            Vec3d beamPoint = new Vec3d(markX, y, markZ);
-            if (isPointVisible(cameraPos, beamPoint)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -254,24 +230,5 @@ public class GeometryCalculator {
                     (float)(config.getFadeDistance() - config.getBeamCenterTolerance());
             return Math.max(config.getMinInteractionTransparency(), 1.0f - fadeProgress);
         }
-    }
-
-    /**
-     * Performs raycast to check if point is visible (not obstructed by blocks)
-     */
-    private boolean isPointVisible(Vec3d cameraPos, Vec3d point) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) return false;
-
-        RaycastContext context = new RaycastContext(
-                cameraPos,
-                point,
-                RaycastContext.ShapeType.COLLIDER,
-                RaycastContext.FluidHandling.NONE,
-                client.player
-        );
-
-        HitResult result = client.world.raycast(context);
-        return result.getType() == HitResult.Type.MISS;
     }
 }

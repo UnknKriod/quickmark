@@ -30,10 +30,8 @@ public class BeamRenderer {
         // Get parameters based on mark type
         float beamScreenWidth = (mark.getType() == MarkType.DANGER) ?
                 config.getDangerBeamScreenWidth() : config.getBeamScreenWidth();
-        int upRange = (mark.getType() == MarkType.DANGER) ?
-                config.getDangerUpRange() : config.getMaxY();
-        int downRange = (mark.getType() == MarkType.DANGER) ?
-                config.getDangerDownRange() : config.getDownRange();
+        int upRange = config.getUpRange(mark.getType());
+        int downRange = config.getDownRange(mark.getType());
         Color color = (mark.getType() == MarkType.DANGER) ?
                 config.getDangerBeamColor() : MarkRenderer.getColorForMark(mark);
 
@@ -46,8 +44,10 @@ public class BeamRenderer {
 
         double xCenter = pos.getX() + 0.5;
         double zCenter = pos.getZ() + 0.5;
-        double y1 = downRange;
-        double y2 = upRange;
+        // The beam is anchored to the mark: the ranges are offsets from the marked block, not
+        // absolute world Y. Otherwise a mark below y=20 got a beam floating far above it.
+        double y1 = pos.getY() - downRange;
+        double y2 = pos.getY() + upRange;
 
         // Calculate distance to beam for width adjustment
         double dx = xCenter - cameraPos.x;

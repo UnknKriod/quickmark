@@ -1,10 +1,14 @@
 package me.unknkriod.quickmark.gui.mark;
 
+import me.unknkriod.quickmark.mark.MarkType;
+
 import java.awt.Color;
 
 public class MarkRenderConfig {
     // Основные параметры
-    private static final int MAX_Y = 255;
+    /** Blocks the beam extends above the mark. Relative to the mark, not an absolute world Y. */
+    private static final int UP_RANGE = 255;
+    /** Blocks the beam extends below the mark. Relative to the mark. */
     private static final int DOWN_RANGE = 20;
     private static final int HOVER_THRESHOLD = 20;
     private static final long PARTICLE_INTERVAL = 200;
@@ -34,8 +38,19 @@ public class MarkRenderConfig {
     private static final Color DEFAULT_COLOR = new Color(255, 255, 255, 255);
 
     // Геттеры для всех констант
-    public int getMaxY() { return MAX_Y; }
-    public int getDownRange() { return DOWN_RANGE; }
+    /**
+     * Blocks the beam extends above its mark. Anchored to the mark so a marker placed in a deep
+     * cave (overworld spans -64..320 in 1.21) still gets a beam through the marked block.
+     */
+    public int getUpRange(MarkType type) {
+        return type == MarkType.DANGER ? DANGER_UP_RANGE : UP_RANGE;
+    }
+
+    /** Blocks the beam extends below its mark. */
+    public int getDownRange(MarkType type) {
+        return type == MarkType.DANGER ? DANGER_DOWN_RANGE : DOWN_RANGE;
+    }
+
     public int getHoverThreshold() { return HOVER_THRESHOLD; }
     public long getParticleInterval() { return PARTICLE_INTERVAL; }
 
@@ -52,9 +67,6 @@ public class MarkRenderConfig {
     public float getMaxScaleDistance() { return MAX_SCALE_DISTANCE; }
 
     public float getDangerBeamScreenWidth() { return DANGER_BEAM_SCREEN_WIDTH; }
-    public int getDangerUpRange() { return DANGER_UP_RANGE; }
-    public int getDangerDownRange() { return DANGER_DOWN_RANGE; }
-
     public Color getDangerBeamColor() { return DANGER_BEAM_COLOR; }
     public Color getDefaultColor() { return DEFAULT_COLOR; }
 }

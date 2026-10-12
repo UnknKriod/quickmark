@@ -21,6 +21,7 @@
   "quickmark.tooltip.line1": "Метка игрока %s",
   "quickmark.tooltip.danger.line1": "ОПАСНОСТЬ!",
   "quickmark.tooltip.line2": "Нажмите колесико мыши, чтобы удалить",
+  "quickmark.mark.distance": "%s м",
   "quickmark.info.invited.title": "Присоединение к группе",
   "quickmark.info.invited.message": "%s присоединился к группе",
 

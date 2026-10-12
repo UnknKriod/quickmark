@@ -21,6 +21,7 @@
   "quickmark.tooltip.line1": "%s`s mark",
   "quickmark.tooltip.danger.line1": "DANGER!",
   "quickmark.tooltip.line2": "Click the middle mouse button to delete",
+  "quickmark.mark.distance": "%s m",
   "quickmark.info.invited.title": "Joining the team",
   "quickmark.info.invited.message": "%s joined your group",
 
