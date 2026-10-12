@@ -22,6 +22,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.registry.Registries;
@@ -93,9 +95,19 @@ public class Quickmark implements ClientModInitializer {
 
         TeamManager.initialize();
 
-        // Register 3D mark rendering after translucent blocks
-        WorldRenderEvents.AFTER_TRANSLUCENT.register((context) -> {
-            MarkRenderer.render3D(context.matrixStack(), MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers());
+        // Register 3D mark rendering.
+        //
+        // AFTER_ENTITIES is the first event where the matrix stack and the vertex consumers are
+        // both available, and it still runs inside the world projection. AFTER_TRANSLUCENT was
+        // wrong: Fabric documents that every buffered quad has already been drawn by then, and
+        // WorldRenderContext.consumers() is null after BLOCK_OUTLINE. Appending beam quads to the
+        // entity consumers there left them to be flushed at an uncontrolled point with the HUD
+        // projection instead of the world one.
+        WorldRenderEvents.AFTER_ENTITIES.register(context -> {
+            MatrixStack matrices = context.matrixStack();
+            VertexConsumerProvider consumers = context.consumers();
+            if (matrices == null || consumers == null) return;
+            MarkRenderer.render3D(matrices, consumers);
         });
 
         // Register HUD overlays and tooltips
