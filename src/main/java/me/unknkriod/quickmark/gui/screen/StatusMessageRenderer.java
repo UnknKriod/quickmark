@@ -5,55 +5,63 @@ import net.minecraft.client.gui.DrawContext;
 
 import static me.unknkriod.quickmark.gui.screen.TeamUIUtils.drawRoundedRect;
 
+/**
+ * Shows a short status line above the panel, fading in and out.
+ * <p>
+ * Owns the message and the time it was shown. The fade is derived from how long the message has
+ * been up rather than accumulated per frame, so it is frame-rate independent and the state cannot
+ * be lost by passing it through a parameter.
+ */
 public class StatusMessageRenderer {
 
-    private static final float STATUS_FADE_SPEED = 3f;
-    private static final long STATUS_MESSAGE_DURATION = 3000;
+    private static final long DISPLAY_DURATION = 3000;
+    private static final long FADE_DURATION = 500;
 
-    public static void render(
-            DrawContext context,
-            TextRenderer textRenderer,
-            int width,
-            int height,
-            int panelHeight,
-            String statusMessage,
-            long statusMessageTime,
-            float statusMessageAlpha,
-            float delta,
-            float scaleFactor
-    ) {
-        if (statusMessage != null) {
-            long elapsed = System.currentTimeMillis() - statusMessageTime;
-            if (elapsed < STATUS_MESSAGE_DURATION) {
-                if (elapsed < 500) {
-                    statusMessageAlpha = Math.min(1f, statusMessageAlpha + delta * STATUS_FADE_SPEED);
-                } else if (elapsed > STATUS_MESSAGE_DURATION - 500) {
-                    statusMessageAlpha = Math.max(0f, statusMessageAlpha - delta * STATUS_FADE_SPEED);
-                } else {
-                    statusMessageAlpha = 1f;
-                }
+    private String message = null;
+    private long messageTime = 0;
 
-                int centerX = width / 2;
-                int panelTop = height / 2 - panelHeight / 2;
-                int messageY = panelTop - (int)(30 * scaleFactor);
+    /** Starts showing a message, fading in from transparent. */
+    public void show(String message) {
+        this.message = message;
+        this.messageTime = System.currentTimeMillis();
+    }
 
-                int messageWidth = textRenderer.getWidth(statusMessage) + (int)(20 * scaleFactor);
-                int messageX = centerX - messageWidth / 2;
+    public void render(DrawContext context, TextRenderer textRenderer, int width, int height,
+                       int panelHeight, float scaleFactor) {
+        if (message == null) return;
 
-                int bgAlpha = (int)(0xCC * statusMessageAlpha);
-                int textAlpha = (int)(0xFF * statusMessageAlpha);
-
-                drawRoundedRect(context, messageX, messageY - (int)(5 * scaleFactor),
-                        messageWidth, (int)(25 * scaleFactor),
-                        (int)(4 * scaleFactor), (bgAlpha << 24) | 0x1E1E26);
-
-                context.drawText(textRenderer, statusMessage,
-                        centerX - textRenderer.getWidth(statusMessage) / 2,
-                        messageY, (textAlpha << 24) | 0xFFFFFF, false);
-            } else {
-                statusMessage = null;
-                statusMessageAlpha = 0f;
-            }
+        long elapsed = System.currentTimeMillis() - messageTime;
+        if (elapsed >= DISPLAY_DURATION) {
+            // Expired: drop it here so the screen does not hold a stale string forever.
+            message = null;
+            return;
         }
+
+        float alpha;
+        if (elapsed < FADE_DURATION) {
+            alpha = elapsed / (float) FADE_DURATION;
+        } else if (elapsed > DISPLAY_DURATION - FADE_DURATION) {
+            alpha = (DISPLAY_DURATION - elapsed) / (float) FADE_DURATION;
+        } else {
+            alpha = 1f;
+        }
+
+        int centerX = width / 2;
+        int panelTop = height / 2 - panelHeight / 2;
+        int messageY = panelTop - (int)(30 * scaleFactor);
+
+        int messageWidth = textRenderer.getWidth(message) + (int)(20 * scaleFactor);
+        int messageX = centerX - messageWidth / 2;
+
+        int bgAlpha = (int)(0xCC * alpha);
+        int textAlpha = (int)(0xFF * alpha);
+
+        drawRoundedRect(context, messageX, messageY - (int)(5 * scaleFactor),
+                messageWidth, (int)(25 * scaleFactor),
+                (int)(4 * scaleFactor), (bgAlpha << 24) | 0x1E1E26);
+
+        context.drawText(textRenderer, message,
+                centerX - textRenderer.getWidth(message) / 2,
+                messageY, (textAlpha << 24) | 0xFFFFFF, false);
     }
 }

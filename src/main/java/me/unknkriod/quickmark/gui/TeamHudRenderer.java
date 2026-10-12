@@ -121,18 +121,14 @@ public class TeamHudRenderer {
                     size, size,
                     8, 8, 64, 64);
 
-            context.getMatrices().pushMatrix();
-            context.getMatrices().translate(0, 0);
-
-            // Render player hat layer (40x8 pixels from texture)
+            // Render player hat layer (40x8 pixels from texture), drawn over the head at the same
+            // position: no matrix transform is needed for that.
             GuiComponent.drawTexture(context, skinTexture,
                     x,
                     y,
                     40, 8,
                     size, size,
                     8, 8, 64, 64);
-
-            context.getMatrices().popMatrix();
         }
     }
 

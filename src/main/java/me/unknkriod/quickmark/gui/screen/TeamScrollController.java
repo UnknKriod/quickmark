@@ -30,10 +30,6 @@ public class TeamScrollController {
         return maxScroll > 0 ? (float) scrollOffset / maxScroll : 0f;
     }
 
-    public int getScrollbarDragStartY() {
-        return scrollbarDragStartY;
-    }
-
     public void setMaxScroll(int newMaxScroll) {
         this.maxScroll = newMaxScroll;
         scrollOffset = MathHelper.clamp(scrollOffset, 0, maxScroll);
@@ -76,8 +72,7 @@ public class TeamScrollController {
         return scrollOffset != oldOffset;
     }
 
-    public void renderScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY,
-                                TeamManagementScreen screen) {
+    public void renderScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY) {
         if (maxScroll <= 0) return;
 
         drawRoundedRect(context, x, y, scale(SCROLLBAR_WIDTH), height,

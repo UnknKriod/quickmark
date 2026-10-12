@@ -23,8 +23,8 @@ import static me.unknkriod.quickmark.gui.screen.TeamScreenLayout.*;
 
 public class PlayersTabRenderer {
 
-    public static void render(DrawContext context, TextRenderer textRenderer, int x, int y, int mouseX, int hoverMouseY, float delta,
-                              int panelWidth, int sidebarWidth, TeamScrollController scrollController,
+    public static void render(DrawContext context, TextRenderer textRenderer, int x, int y, int mouseX, int hoverMouseY,
+                              int panelWidth, int panelHeight, int sidebarWidth, TeamScrollController scrollController,
                               TextFieldWidget searchField, int cardWidth) {
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -49,12 +49,13 @@ public class PlayersTabRenderer {
             return;
         }
 
-        int availableWidth = panelWidth - sidebarWidth - scale(CARD_CONTENT_LEFT_PADDING) * 2;
-        int actualCardWidth = Math.min(cardWidth, availableWidth);
+        int actualCardWidth = cardContentWidth(panelWidth, sidebarWidth, cardWidth);
+        int panelRight = panelRight(x, sidebarWidth, panelWidth);
         int cardY = y + scale(CONTENT_SCROLL_AREA_INNER_TOP_PADDING);
 
+        // The viewport is bounded by the panel's height, not its width.
         scrollController.setMaxScroll(Math.max(0, players.size() * scale(PLAYER_LIST_ITEM_SPACING) -
-                (panelWidth - scale(98))));
+                contentScrollHeight(panelHeight)));
 
         for (PlayerListEntry entry : players) {
             boolean isHovered = mouseX >= x + scale(CARD_CONTENT_LEFT_PADDING) &&
@@ -62,13 +63,13 @@ public class PlayersTabRenderer {
                     hoverMouseY >= cardY && hoverMouseY < cardY + scale(PLAYER_LIST_CARD_HEIGHT);
             renderPlayerListCard(context, textRenderer, entry,
                     x + scale(CARD_CONTENT_LEFT_PADDING), cardY,
-                    actualCardWidth, isHovered);
+                    actualCardWidth, panelRight, isHovered);
             cardY += scale(PLAYER_LIST_ITEM_SPACING);
         }
     }
 
     private static void renderPlayerListCard(DrawContext context, TextRenderer textRenderer, PlayerListEntry entry,
-                                             int x, int y, int actualWidth, boolean isHovered) {
+                                             int x, int y, int actualWidth, int panelRight, boolean isHovered) {
         int cardColor = isHovered ? BG_CARD_HOVER : BG_CARD;
         drawRoundedRect(context, x, y, actualWidth, scale(PLAYER_LIST_CARD_HEIGHT),
                 scale(PLAYER_LIST_CARD_BORDER_RADIUS), cardColor);
@@ -107,7 +108,7 @@ public class PlayersTabRenderer {
                     buttonWidth,
                     scale(PLAYER_LIST_INVITE_BUTTON_HEIGHT),
                     buttonText, ACCENT_PRIMARY,
-                    0, 0, textRenderer, scale(BUTTON_BORDER_RADIUS));
+                    panelRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
         }
     }
 }

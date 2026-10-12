@@ -12,8 +12,10 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static me.unknkriod.quickmark.gui.screen.TeamScreenLayout.*;
@@ -47,12 +49,20 @@ public class TeamTabRenderer {
             return;
         }
 
-        int availableWidth = panelWidth - sidebarWidth - scale(CARD_CONTENT_LEFT_PADDING) * 2;
-        int actualCardWidth = Math.min(cardWidth, availableWidth);
+        int actualCardWidth = cardContentWidth(panelWidth, sidebarWidth, cardWidth);
+        int panelRight = panelRight(x, sidebarWidth, panelWidth);
+
+        // Keep the hover-animation map bounded by the players actually on the team instead of
+        // growing it by one entry for every UUID ever seen.
+        Set<UUID> memberIds = new HashSet<>();
+        for (TeamPlayer member : members) {
+            memberIds.add(member.getPlayerId());
+        }
+        hoverAnimations.keySet().retainAll(memberIds);
 
         int cardY = y + scale(CONTENT_SCROLL_AREA_INNER_TOP_PADDING);
         scrollController.setMaxScroll(Math.max(0, members.size() * (cardHeight + cardSpacing) -
-                (panelHeight - scale(98))));
+                contentScrollHeight(panelHeight)));
 
         for (int i = 0; i < members.size(); i++) {
             TeamPlayer player = members.get(i);
@@ -62,13 +72,13 @@ public class TeamTabRenderer {
 
             renderTeamMemberCard(context, textRenderer, player, i,
                     x + scale(CARD_CONTENT_LEFT_PADDING), cardY,
-                    actualCardWidth, cardHeight, panelWidth, isHovered, mouseX, mouseY, delta);
+                    actualCardWidth, cardHeight, panelRight, isHovered, mouseX, mouseY, delta);
             cardY += cardHeight + cardSpacing;
         }
     }
 
     private static void renderTeamMemberCard(DrawContext context, TextRenderer textRenderer, TeamPlayer player, int position,
-                                             int x, int y, int actualWidth, int cardHeight, int panelWidth, boolean isHovered,
+                                             int x, int y, int actualWidth, int cardHeight, int panelRight, boolean isHovered,
                                              int mouseX, int mouseY, float delta) {
         MinecraftClient client = MinecraftClient.getInstance();
         UUID playerId = player.getPlayerId();
@@ -159,29 +169,37 @@ public class TeamTabRenderer {
 
         if (client.player != null && TeamManager.isLeader(client.player.getUuid()) && !isSelf) {
             renderActionButtons(context, textRenderer, isLeader,
-                    x + actualWidth - scale(ACTION_BUTTONS_RIGHT_PADDING),
-                    y + scale(ACTION_BUTTONS_TOP_PADDING), actualWidth, panelWidth, isHovered, mouseX, mouseY);
+                    x, y, actualWidth, panelRight, isHovered, mouseX, mouseY);
         }
     }
 
+    /**
+     * Draws the promote/kick buttons for a card.
+     * <p>
+     * Positions come from {@link TeamScreenLayout}, the same helpers the click handler uses, so a
+     * button can never be drawn somewhere other than where it is clickable.
+     */
     private static void renderActionButtons(DrawContext context, TextRenderer textRenderer, boolean isPlayerLeader,
-                                            int x, int y, int width, int panelWidth, boolean parentHovered,
-                                            int mouseX, int mouseY) {
+                                            int cardX, int cardY, int actualWidth, int panelRight,
+                                            boolean parentHovered, int mouseX, int mouseY) {
         if (!parentHovered) return;
 
         int buttonSize = scale(ACTION_BUTTON_SIZE);
-        int leadX = x;
-        int kickX = x + scale(ACTION_BUTTON_SPACING);
+        int buttonTop = cardY + scale(ACTION_BUTTONS_TOP_PADDING);
 
         if (!isPlayerLeader) {
-            drawIconButton(context, leadX, y, buttonSize, "⬆", ACCENT_SUCCESS, width, panelWidth, textRenderer, scale(BUTTON_BORDER_RADIUS));
-            if (mouseInRect(mouseX, mouseY, leadX, y, buttonSize, buttonSize)) {
+            int leadX = cardX + promoteButtonX(actualWidth);
+            drawIconButton(context, leadX, buttonTop, buttonSize, "⬆", ACCENT_SUCCESS, panelRight,
+                    textRenderer, scale(BUTTON_BORDER_RADIUS));
+            if (mouseInRect(mouseX, mouseY, leadX, buttonTop, buttonSize, buttonSize)) {
                 context.drawTooltip(textRenderer, Text.literal("Make leader"), mouseX, mouseY);
             }
         }
 
-        drawIconButton(context, kickX, y, buttonSize, "✕", ACCENT_DANGER, width, panelWidth, textRenderer, scale(BUTTON_BORDER_RADIUS));
-        if (mouseInRect(mouseX, mouseY, kickX, y, buttonSize, buttonSize)) {
+        int kickX = cardX + kickButtonX(actualWidth);
+        drawIconButton(context, kickX, buttonTop, buttonSize, "✕", ACCENT_DANGER, panelRight,
+                textRenderer, scale(BUTTON_BORDER_RADIUS));
+        if (mouseInRect(mouseX, mouseY, kickX, buttonTop, buttonSize, buttonSize)) {
             context.drawTooltip(textRenderer, Text.literal("Kick from team"), mouseX, mouseY);
         }
     }

@@ -32,10 +32,9 @@ public class InviteOverlayRenderer extends AbstractOverlayRenderer {
         int scaledWidth = (int) (BASE_WIDTH * scale);
         int scaledHeight = (int) (BASE_HEIGHT * scale);
 
-        int targetX = 5;
         int y = 60;
 
-        int x = calculateAnimationX(targetX, scaledWidth);
+        int x = calculateAnimationX(restingX, scaledWidth);
         if (!isVisible()) return;
 
         // Background

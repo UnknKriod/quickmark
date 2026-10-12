@@ -10,7 +10,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.sound.SoundEvents;
@@ -25,23 +24,34 @@ import java.util.*;
 
 public class TeamManagementScreen extends Screen {
     private TextFieldWidget searchField;
-    private ButtonWidget leaveButton;
     private final TeamScrollController scrollController;
-    private final int panelWidth, panelHeight, cardWidth, cardHeight,
-            sidebarWidth, cardSpacing, scrollbarWidth;
+    // Not final: these are derived from the current GUI scale, which changes when the window is
+    // resized or toggled to fullscreen while the screen is open. See updateLayout().
+    private int panelWidth, panelHeight, cardWidth, cardHeight,
+            sidebarWidth, cardSpacing;
 
     private Tab currentTab = TEAM;
     private final TeamSidebarRenderer sidebarRenderer;
-
-    private String statusMessage = null;
-    private long statusMessageTime = 0;
-    private float statusMessageAlpha = 0f;
+    private final StatusMessageRenderer statusRenderer = new StatusMessageRenderer();
 
     public TeamManagementScreen() {
         super(Text.literal("Team Management"));
         this.sidebarRenderer = new TeamSidebarRenderer();
         this.scrollController = new TeamScrollController();
 
+        updateLayout();
+    }
+
+    /**
+     * Recomputes the GUI scale and every size derived from it.
+     * <p>
+     * {@link #init()} runs again whenever the window is resized or fullscreen is toggled while the
+     * screen is open. The cached sizes used to be final and set only in the constructor, so after
+     * such a change {@code scale(...)} calls made during rendering used the new scale while
+     * {@code sidebarWidth} and the panel size kept the old one: tabs came out narrower than tall and
+     * the logo lost its margin.
+     */
+    private void updateLayout() {
         TeamScreenLayout.calculateScale();
 
         panelWidth = scale(BASE_PANEL_WIDTH);
@@ -50,50 +60,35 @@ public class TeamManagementScreen extends Screen {
         cardHeight = scale(BASE_CARD_HEIGHT);
         sidebarWidth = scale(BASE_SIDEBAR_WIDTH);
         cardSpacing = scale(BASE_CARD_SPACING);
-        scrollbarWidth = scale(SCROLLBAR_WIDTH);
     }
 
     @Override
     protected void init() {
         super.init();
 
-        TeamScreenLayout.calculateScale();
+        updateLayout();
 
         int centerX = width / 2;
         int centerY = height / 2;
         int panelLeft = centerX - panelWidth / 2;
         int panelTop = centerY - panelHeight / 2;
 
-        int availableSearchWidth = cardWidth - scale(SEARCH_FIELD_HORIZONTAL_PADDING);
-        int maxSearchWidth = panelWidth - sidebarWidth - scale(SEARCH_FIELD_LEFT_PADDING) * 2;
-        int actualSearchWidth = Math.min(availableSearchWidth, maxSearchWidth);
+        // The field's width is the content width less the side padding on each side, so its left and
+        // right margins are always equal and it can never end up flush against the panel's edge.
+        int contentLeft = panelLeft + sidebarWidth;
+        int contentWidth = panelWidth - sidebarWidth;
 
         searchField = new TextFieldWidget(
                 textRenderer,
-                panelLeft + sidebarWidth + scale(SEARCH_FIELD_LEFT_PADDING),
+                contentLeft + searchFieldSidePadding(),
                 panelTop + scale(SEARCH_FIELD_TOP_PADDING),
-                actualSearchWidth,
+                searchFieldWidth(contentWidth),
                 scale(SEARCH_FIELD_HEIGHT),
                 Text.literal("Search...")
         );
         searchField.setPlaceholder(Text.literal("🔍 Search players...").styled(style ->
                 style.withColor(TEXT_SECONDARY)));
         addDrawableChild(searchField);
-
-        int leaveButtonX = panelLeft + sidebarWidth + scale(SEARCH_FIELD_LEFT_PADDING);
-        if (leaveButtonX + scale(LEAVE_BUTTON_WIDTH) > panelLeft + panelWidth) {
-            leaveButtonX = panelLeft + panelWidth - scale(LEAVE_BUTTON_WIDTH) - scale(10);
-        }
-
-        leaveButton = ButtonWidget.builder(
-                        Text.literal("Leave Team"),
-                        button -> confirmLeaveTeam()
-                )
-                .position(leaveButtonX,
-                        panelTop + panelHeight - scale(LEAVE_BUTTON_BOTTOM_MARGIN))
-                .size(scale(LEAVE_BUTTON_WIDTH), scale(LEAVE_BUTTON_HEIGHT))
-                .build();
-        addDrawableChild(leaveButton);
 
         updateVisibility();
     }
@@ -102,11 +97,13 @@ public class TeamManagementScreen extends Screen {
         if (searchField != null) {
             searchField.setVisible(currentTab == Tab.PLAYERS);
         }
-        if (leaveButton != null) {
-            // The leader of a multi-member team cannot leave without promoting someone else,
-            // so the button is only offered when leaving is actually possible.
-            leaveButton.visible = currentTab == TEAM && TeamManager.canLeaveTeam();
-        }
+    }
+
+    /** Whether the Leave Team button is offered on the current tab. */
+    private boolean isLeaveButtonVisible() {
+        // The leader of a multi-member team cannot leave without promoting someone else, so the
+        // button is only offered when leaving is actually possible.
+        return currentTab == TEAM && TeamManager.canLeaveTeam();
     }
 
     @Override
@@ -123,56 +120,62 @@ public class TeamManagementScreen extends Screen {
         drawRoundedRect(context, panelLeft, panelTop, panelWidth, panelHeight,
                 scale(PANEL_BORDER_RADIUS), BG_PRIMARY);
 
-        sidebarRenderer.renderSidebar(context, panelLeft, panelTop, mouseX, mouseY, delta, currentTab, sidebarWidth, panelHeight);
+        sidebarRenderer.renderSidebar(context, panelLeft, panelTop, mouseX, mouseY, currentTab, sidebarWidth, panelHeight);
 
         int contentLeft = panelLeft + sidebarWidth;
         int contentTop = panelTop;
         int contentWidth = panelWidth - sidebarWidth;
+        int contentHeight = TeamScreenLayout.contentScrollHeight(panelHeight);
+        int scrollAreaTop = contentTop + scale(CONTENT_SCROLL_AREA_TOP);
 
         renderHeader(context, contentLeft, contentTop, contentWidth);
 
         int hoverMouseY = mouseY + scrollController.getScrollOffset();
 
-        context.enableScissor(contentLeft, contentTop + scale(CONTENT_SCROLL_AREA_TOP),
-                contentLeft + contentWidth, contentTop + panelHeight - scale(CONTENT_SCROLL_AREA_BOTTOM));
+        context.enableScissor(contentLeft, scrollAreaTop,
+                contentLeft + contentWidth, scrollAreaTop + contentHeight);
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(0, -scrollController.getScrollOffset());
 
-        int scrollContentTop = contentTop + scale(CONTENT_SCROLL_AREA_TOP);
         switch (currentTab) {
-            case TEAM -> TeamTabRenderer.render(context, textRenderer, currentTab, contentLeft, scrollContentTop,
-                    mouseX, mouseY + scrollController.getScrollOffset(), delta, panelWidth, panelHeight, sidebarWidth, cardWidth, cardHeight, cardSpacing, scrollController);
-            case INVITES -> InvitesTabRenderer.render(context, textRenderer, contentLeft, scrollContentTop,
-                    mouseX, mouseY + scrollController.getScrollOffset(), width, panelWidth, panelHeight, sidebarWidth, cardWidth, cardHeight, cardSpacing, scrollController);
-            case PLAYERS -> PlayersTabRenderer.render(context, textRenderer, contentLeft, scrollContentTop,
-                    mouseX, hoverMouseY, delta, panelWidth, sidebarWidth, scrollController, searchField, cardWidth);
+            case TEAM -> TeamTabRenderer.render(context, textRenderer, currentTab, contentLeft, scrollAreaTop,
+                    mouseX, hoverMouseY, delta, panelWidth, panelHeight, sidebarWidth, cardWidth, cardHeight, cardSpacing, scrollController);
+            case INVITES -> InvitesTabRenderer.render(context, textRenderer, contentLeft, scrollAreaTop,
+                    mouseX, hoverMouseY, panelWidth, panelHeight, sidebarWidth, cardWidth, cardHeight, cardSpacing, scrollController);
+            case PLAYERS -> PlayersTabRenderer.render(context, textRenderer, contentLeft, scrollAreaTop,
+                    mouseX, hoverMouseY, panelWidth, panelHeight, sidebarWidth, scrollController, searchField, cardWidth);
         }
 
         context.getMatrices().popMatrix();
         context.disableScissor();
 
-        scrollController.renderScrollbar(context, contentLeft + contentWidth - scale(6), contentTop + scale(CONTENT_SCROLL_AREA_TOP), panelHeight - scale(98), mouseX, mouseY, this);
+        scrollController.renderScrollbar(context,
+                TeamScreenLayout.scrollbarX(contentLeft, contentWidth), scrollAreaTop,
+                contentHeight, mouseX, mouseY);
 
-        renderFooter(context, contentLeft, contentTop + panelHeight - scale(FOOTER_TOP_MARGIN), contentWidth);
+        renderFooter(context, panelLeft, panelTop);
 
-        StatusMessageRenderer.render(context, textRenderer, width, height, panelHeight, statusMessage, statusMessageTime, statusMessageAlpha, delta, TeamScreenLayout.getCurrentScale());
-
-        sidebarRenderer.updateAnimations(delta, currentTab);
+        statusRenderer.render(context, textRenderer, width, height, panelHeight,
+                TeamScreenLayout.getCurrentScale());
 
         super.render(context, mouseX, mouseY, delta);
     }
 
     private void renderHeader(DrawContext context, int x, int y, int width) {
+        // The Invite tab shows the search field where the title would be, so it draws no title.
+        // Its subtitle stays on the same line as on the other tabs.
         String title = switch (currentTab) {
             case TEAM -> "Your Team";
             case INVITES -> "Invitations";
-            case PLAYERS -> "Invite Players";
+            case PLAYERS -> null;
         };
 
-        context.drawText(textRenderer, title,
-                x + scale(SEARCH_FIELD_LEFT_PADDING),
-                y + scale(CONTENT_HEADER_TOP_PADDING),
-                TEXT_PRIMARY, true);
+        if (title != null) {
+            context.drawText(textRenderer, title,
+                    x + searchFieldSidePadding(),
+                    y + scale(CONTENT_HEADER_TOP_PADDING),
+                    TEXT_PRIMARY, true);
+        }
 
         String subtitle = switch (currentTab) {
             case TEAM -> TeamManager.getTeamMembers().size() + " members";
@@ -181,7 +184,7 @@ public class TeamManagementScreen extends Screen {
         };
 
         context.drawText(textRenderer, subtitle,
-                x + scale(SEARCH_FIELD_LEFT_PADDING),
+                x + searchFieldSidePadding(),
                 y + scale(CONTENT_HEADER_BOTTOM_PADDING),
                 TEXT_SECONDARY, false);
     }
@@ -204,29 +207,73 @@ public class TeamManagementScreen extends Screen {
         context.drawText(textRenderer, icon, -iconWidth / 4, 0, TEXT_SECONDARY, false);
         context.getMatrices().popMatrix();
 
+        int titleY = centerY + scale(EMPTY_STATE_TITLE_TOP_PADDING);
         int titleWidth = textRenderer.getWidth(title);
         context.drawText(textRenderer, title,
                 centerX - titleWidth / 2,
-                centerY + scale(EMPTY_STATE_TITLE_TOP_PADDING),
+                titleY,
                 TEXT_SECONDARY, true);
 
         int subWidth = textRenderer.getWidth(subtitle);
         context.drawText(textRenderer, subtitle,
                 centerX - subWidth / 2,
-                centerY + scale(EMPTY_STATE_SUBTITLE_TOP_PADDING),
+                emptyStateSubtitleTop(titleY, textRenderer.fontHeight),
                 0x60_FFFFFF, false);
     }
 
-    private void renderFooter(DrawContext context, int x, int y, int width) {
+    /** Screen-space rectangle of the Close button, shared by drawing and hit testing. */
+    private record Bounds(int x, int y, int width, int height) {
+        boolean contains(double mouseX, double mouseY) {
+            return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
+        }
+    }
+
+    private Bounds closeButtonBounds(int panelLeft, int panelTop) {
+        int contentLeft = panelLeft + sidebarWidth;
+        int contentWidth = panelWidth - sidebarWidth;
+        int footerY = panelTop + panelHeight - scale(FOOTER_TOP_MARGIN);
+        return new Bounds(
+                contentLeft + contentWidth - scale(CLOSE_BUTTON_RIGHT_PADDING),
+                footerY + scale(CLOSE_BUTTON_TOP_PADDING),
+                scale(CLOSE_BUTTON_WIDTH),
+                scale(CLOSE_BUTTON_HEIGHT));
+    }
+
+    /**
+     * Screen-space rectangle of the Leave Team button, shared by drawing and hit testing.
+     * It sits on the same footer row as Close and is drawn flat with the same helper.
+     */
+    private Bounds leaveButtonBounds(int panelLeft, int panelTop) {
+        int contentLeft = panelLeft + sidebarWidth;
+        int x = contentLeft + searchFieldSidePadding();
+        int clipRight = TeamScreenLayout.panelRight(contentLeft, sidebarWidth, panelWidth);
+        int width = Math.min(scale(LEAVE_BUTTON_WIDTH), clipRight - x);
+
+        int footerY = panelTop + panelHeight - scale(FOOTER_TOP_MARGIN);
+        return new Bounds(x, footerY + scale(CLOSE_BUTTON_TOP_PADDING),
+                width, scale(LEAVE_BUTTON_HEIGHT));
+    }
+
+    private void renderFooter(DrawContext context, int panelLeft, int panelTop) {
+        int x = panelLeft + sidebarWidth;
+        int width = panelWidth - sidebarWidth;
+        int y = panelTop + panelHeight - scale(FOOTER_TOP_MARGIN);
+
         context.fill(x + scale(FOOTER_BUTTON_HORIZONTAL_PADDING), y,
                 x + width - scale(FOOTER_BUTTON_HORIZONTAL_PADDING),
                 y + scale(FOOTER_BORDER_HEIGHT), BORDER_COLOR);
 
-        drawButton(context, x + width - scale(CLOSE_BUTTON_RIGHT_PADDING),
-                y + scale(CLOSE_BUTTON_TOP_PADDING),
-                scale(CLOSE_BUTTON_WIDTH), scale(CLOSE_BUTTON_HEIGHT),
-                "Close", BG_CARD_HOVER,
-                width, panelWidth, textRenderer, scale(BUTTON_BORDER_RADIUS));
+        int clipRight = TeamScreenLayout.panelRight(x, sidebarWidth, panelWidth);
+
+        Bounds close = closeButtonBounds(panelLeft, panelTop);
+        drawButton(context, close.x(), close.y(), close.width(), close.height(),
+                "Close", BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
+
+        if (isLeaveButtonVisible()) {
+            Bounds leave = leaveButtonBounds(panelLeft, panelTop);
+            drawButton(context, leave.x(), leave.y(), leave.width(), leave.height(),
+                    "Leave Team", BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
+        }
     }
 
     private int getInviteCount() {
@@ -255,18 +302,21 @@ public class TeamManagementScreen extends Screen {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
+        // Cards are drawn clamped to the content viewport, so every hit box below has to use the
+        // same width the renderer used. Passing cardWidth here is what used to put the promote and
+        // kick buttons about 40 px away from where they are drawn.
+        int actualCardWidth = TeamScreenLayout.cardContentWidth(panelWidth, sidebarWidth, cardWidth);
+        int cardLeft = contentX + scale(CARD_CONTENT_LEFT_PADDING);
+        boolean inCardColumn = mouseX >= cardLeft && mouseX < cardLeft + actualCardWidth;
+
         int cardY = contentY + scale(CONTENT_SCROLL_AREA_INNER_TOP_PADDING);
 
         switch (currentTab) {
             case TEAM -> {
                 List<TeamPlayer> members = TeamManager.getTeamMembers();
                 for (TeamPlayer player : members) {
-                    if (mouseX >= contentX + scale(CARD_CONTENT_LEFT_PADDING) &&
-                            mouseX < contentX + scale(CARD_CONTENT_LEFT_PADDING) + cardWidth &&
-                            mouseY >= cardY && mouseY < cardY + cardHeight) {
-                        handleTeamMemberClick(player,
-                                mouseX - (contentX + scale(CARD_CONTENT_LEFT_PADDING)),
-                                mouseY - cardY);
+                    if (inCardColumn && mouseY >= cardY && mouseY < cardY + cardHeight) {
+                        handleTeamMemberClick(player, mouseX - cardLeft, mouseY - cardY, actualCardWidth);
                         return;
                     }
                     cardY += cardHeight + cardSpacing;
@@ -277,11 +327,8 @@ public class TeamManagementScreen extends Screen {
                 cardY += scale(CONTENT_SECTION_SPACING);
 
                 for (Map.Entry<UUID, String> entry : incoming.entrySet()) {
-                    if (mouseX >= contentX + scale(CARD_CONTENT_LEFT_PADDING) &&
-                            mouseX < contentX + scale(CARD_CONTENT_LEFT_PADDING) + cardWidth &&
-                            mouseY >= cardY && mouseY < cardY + cardHeight) {
-                        handleIncomingInviteClick(entry.getKey(),
-                                mouseX - (contentX + scale(CARD_CONTENT_LEFT_PADDING)));
+                    if (inCardColumn && mouseY >= cardY && mouseY < cardY + cardHeight) {
+                        handleIncomingInviteClick(entry.getKey(), mouseX - cardLeft, mouseY - cardY, actualCardWidth);
                         return;
                     }
                     cardY += cardHeight + cardSpacing;
@@ -291,11 +338,8 @@ public class TeamManagementScreen extends Screen {
                 if (!outgoing.isEmpty()) {
                     cardY += scale(CONTENT_SECTION_LABEL_SPACING);
                     for (Map.Entry<UUID, Map.Entry<String, Long>> entry : outgoing.entrySet()) {
-                        if (mouseX >= contentX + scale(CARD_CONTENT_LEFT_PADDING) &&
-                                mouseX < contentX + scale(CARD_CONTENT_LEFT_PADDING) + cardWidth &&
-                                mouseY >= cardY && mouseY < cardY + cardHeight) {
-                            handleOutgoingInviteClick(entry.getKey(),
-                                    mouseX - (contentX + scale(CARD_CONTENT_LEFT_PADDING)));
+                        if (inCardColumn && mouseY >= cardY && mouseY < cardY + cardHeight) {
+                            handleOutgoingInviteClick(entry.getKey(), mouseX - cardLeft, actualCardWidth);
                             return;
                         }
                         cardY += cardHeight + cardSpacing;
@@ -318,9 +362,7 @@ public class TeamManagementScreen extends Screen {
                         .toList();
 
                 for (PlayerListEntry entry : players) {
-                    if (mouseX >= contentX + scale(CARD_CONTENT_LEFT_PADDING) &&
-                            mouseX < contentX + scale(CARD_CONTENT_LEFT_PADDING) + cardWidth &&
-                            mouseY >= cardY && mouseY < cardY + scale(PLAYER_LIST_CARD_HEIGHT)) {
+                    if (inCardColumn && mouseY >= cardY && mouseY < cardY + scale(PLAYER_LIST_CARD_HEIGHT)) {
                         invitePlayer(entry.getProfile().getId(), entry.getProfile().getName());
                         return;
                     }
@@ -330,7 +372,7 @@ public class TeamManagementScreen extends Screen {
         }
     }
 
-    private void handleTeamMemberClick(TeamPlayer player, int relX, int relY) {
+    private void handleTeamMemberClick(TeamPlayer player, int relX, int relY, int actualCardWidth) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
@@ -341,15 +383,7 @@ public class TeamManagementScreen extends Screen {
 
         boolean isPlayerLeader = TeamManager.isLeader(player.getPlayerId());
 
-        int buttonSize = scale(ACTION_BUTTON_SIZE);
-        int actionRightPadding = scale(ACTION_BUTTONS_RIGHT_PADDING);
-        int actionSpacing = scale(ACTION_BUTTON_SPACING);
-        int actionTop = scale(ACTION_BUTTONS_TOP_PADDING);
-
-        if (!isPlayerLeader && relX >= cardWidth - actionRightPadding &&
-                relX < cardWidth - actionRightPadding + buttonSize &&
-                relY >= actionTop && relY < actionTop + buttonSize) {
-
+        if (!isPlayerLeader && TeamScreenLayout.isOverPromoteButton(relX, relY, actualCardWidth)) {
             String result = TeamManager.promotePlayer(player.getPlayerId());
             if (!result.isEmpty()) {
                 String cleanMessage = result.replace("§a", "").replace("§c", "");
@@ -363,9 +397,7 @@ public class TeamManagementScreen extends Screen {
             return;
         }
 
-        if (relX >= cardWidth - actionRightPadding + actionSpacing &&
-                relX < cardWidth - actionRightPadding + actionSpacing + buttonSize &&
-                relY >= actionTop && relY < actionTop + buttonSize) {
+        if (TeamScreenLayout.isOverKickButton(relX, relY, actualCardWidth)) {
             TeamManager.removePlayer(player.getPlayerId());
             NetworkSender.sendTeamUpdate();
             showStatusMessage("Kicked " + player.getPlayerName() + " from the team");
@@ -373,39 +405,36 @@ public class TeamManagementScreen extends Screen {
         }
     }
 
-    private void handleIncomingInviteClick(UUID senderId, int relX) {
+    private void handleIncomingInviteClick(UUID senderId, int relX, int relY, int actualCardWidth) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
+        // Same helpers the renderer draws with, so the hit boxes cannot drift from the buttons.
         int btnSize = scale(INVITE_ACTION_BUTTON_SIZE);
-        int rightPad = scale(INVITE_ACTION_BUTTONS_RIGHT_PADDING);
-        int spacing  = scale(INVITE_ACTION_BUTTON_SPACING);
-        int actionRight = cardWidth - rightPad;
+        int btnTop = TeamScreenLayout.inviteActionButtonTop(cardHeight, textRenderer.fontHeight);
 
-        // Accept
-        int acceptLeft = actionRight - btnSize;
-        if (relX >= acceptLeft && relX < acceptLeft + btnSize) {
+        if (TeamScreenLayout.isOverButton(relX, relY,
+                TeamScreenLayout.acceptInviteButtonX(actualCardWidth), btnTop, btnSize)) {
             TeamManager.acceptInvitation(senderId);
             client.player.playSound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
             showStatusMessage("Invitation accepted");
             return;
         }
 
-        // Decline
-        int declineLeft = actionRight - btnSize + spacing;
-        if (relX >= declineLeft && relX < declineLeft + btnSize) {
+        if (TeamScreenLayout.isOverButton(relX, relY,
+                TeamScreenLayout.declineInviteButtonX(actualCardWidth), btnTop, btnSize)) {
             TeamManager.declineIncomingInvitation(senderId);
             client.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.5f, 1.0f);
             showStatusMessage("Invitation declined");
         }
     }
 
-    private void handleOutgoingInviteClick(UUID targetId, int relX) {
+    private void handleOutgoingInviteClick(UUID targetId, int relX, int actualCardWidth) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        if (relX >= cardWidth - scale(INVITE_CARD_BUTTON_SPACING) &&
-                relX < cardWidth - scale(7)) {
+        if (relX >= actualCardWidth - scale(INVITE_CARD_BUTTON_SPACING) &&
+                relX < actualCardWidth - scale(7)) {
             TeamManager.cancelOutgoingInvitation(targetId);
             client.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.5f, 1.0f);
         }
@@ -434,51 +463,84 @@ public class TeamManagementScreen extends Screen {
     }
 
     private void showStatusMessage(String message) {
-        this.statusMessage = message;
-        this.statusMessageTime = System.currentTimeMillis();
+        statusRenderer.show(message);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Only the left button drives this screen. Without this check a right or middle click fell
+        // through to the card hit boxes and could kick or promote a member.
+        if (button != 0) {
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
         int centerX = width / 2;
         int centerY = height / 2;
         int panelLeft = centerX - panelWidth / 2;
         int panelTop = centerY - panelHeight / 2;
 
-        Tab clickedTab = sidebarRenderer.getTabAt((int) mouseX, (int) mouseY, panelLeft, panelTop, sidebarWidth);
-        if (clickedTab != null) {
+        if (sidebarRenderer.getTabAt((int) mouseX, (int) mouseY, panelLeft, panelTop, sidebarWidth) instanceof Tab clickedTab) {
             switchTab(clickedTab);
             return true;
         }
 
-        int contentLeft = panelLeft + sidebarWidth;
-        int scrollbarX = contentLeft + (panelWidth - sidebarWidth) - scale(SCROLLBAR_WIDTH);
-        int scrollbarY = panelTop + scale(CONTENT_SCROLL_AREA_TOP);
-        int scrollbarHeight = panelHeight - scale(98);
-        if (scrollController.getMaxScroll() > 0 &&
-                mouseX >= scrollbarX && mouseX < scrollbarX + scale(SCROLLBAR_WIDTH) &&
-                mouseY >= scrollbarY && mouseY < scrollbarY + scrollbarHeight) {
+        if (isOverScrollbar(mouseX, mouseY, panelLeft, panelTop)) {
             scrollController.startDragging((int) mouseY, scrollController.getScrollOffset());
             return true;
         }
 
-        int contentTop = panelTop + scale(CONTENT_SCROLL_AREA_TOP);
-        int scrolledMouseY = (int) mouseY + scrollController.getScrollOffset();
-        handleContentClick(contentLeft, contentTop, (int) mouseX, scrolledMouseY);
+        // Widgets (search field, Leave Team) win over the hand-rolled card hit boxes below, so
+        // clicking a button can never also trigger the card drawn underneath it.
+        if (super.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        if (closeButtonBounds(panelLeft, panelTop).contains(mouseX, mouseY)) {
+            close();
+            return true;
+        }
+
+        if (isLeaveButtonVisible() && leaveButtonBounds(panelLeft, panelTop).contains(mouseX, mouseY)) {
+            confirmLeaveTeam();
+            return true;
+        }
+
+        // Cards only exist inside the scrollable viewport, so anything else (header, footer,
+        // outside the panel) must not be treated as a click on a card.
+        int contentLeft = panelLeft + sidebarWidth;
+        int contentWidth = panelWidth - sidebarWidth;
+        int scrollAreaTop = panelTop + scale(CONTENT_SCROLL_AREA_TOP);
+        int scrollAreaBottom = scrollAreaTop + TeamScreenLayout.contentScrollHeight(panelHeight);
+
+        if (mouseX < contentLeft || mouseX >= contentLeft + contentWidth
+                || mouseY < scrollAreaTop || mouseY >= scrollAreaBottom) {
+            return false;
+        }
+
+        int scrolledMouseY = (int) mouseY + scrollController.getScrollOffset();
+        handleContentClick(contentLeft, scrollAreaTop, (int) mouseX, scrolledMouseY);
+        return true;
+    }
+
+    private boolean isOverScrollbar(double mouseX, double mouseY, int panelLeft, int panelTop) {
+        if (scrollController.getMaxScroll() <= 0) return false;
+
+        int contentLeft = panelLeft + sidebarWidth;
+        int contentWidth = panelWidth - sidebarWidth;
+        int scrollbarX = TeamScreenLayout.scrollbarX(contentLeft, contentWidth);
+        int scrollAreaTop = panelTop + scale(CONTENT_SCROLL_AREA_TOP);
+        int scrollAreaHeight = TeamScreenLayout.contentScrollHeight(panelHeight);
+
+        return mouseX >= scrollbarX && mouseX < scrollbarX + scale(SCROLLBAR_WIDTH)
+                && mouseY >= scrollAreaTop && mouseY < scrollAreaTop + scrollAreaHeight;
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (scrollController.isDragging() && scrollController.getMaxScroll() > 0) {
-            int centerY = height / 2;
-            int panelTop = centerY - panelHeight / 2;
-            int scrollbarHeight = panelHeight - scale(98);
-
-            int deltaMove = (int) mouseY - scrollController.getScrollbarDragStartY();
-            float scrollPercent = (float) deltaMove / scrollbarHeight;
-            return scrollController.handleDrag((int) mouseY, scrollbarHeight, scrollController.getMaxScroll());
+            return scrollController.handleDrag((int) mouseY,
+                    TeamScreenLayout.contentScrollHeight(panelHeight),
+                    scrollController.getMaxScroll());
         }
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }

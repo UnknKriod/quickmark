@@ -33,6 +33,9 @@ public abstract class AbstractOverlayRenderer {
 
     protected float scale = 0.75f;
 
+    /** X the overlay rests at while visible, and where its hide animation starts from. */
+    protected int restingX = 5;
+
     public void show(UUID playerId, String playerName) {
         this.playerId = playerId;
         this.playerName = playerName;
@@ -45,7 +48,8 @@ public abstract class AbstractOverlayRenderer {
         if (animationState == STATE_VISIBLE || animationState == STATE_APPEARING) {
             animationState = STATE_DISAPPEARING;
             animationStartTime = System.currentTimeMillis();
-            lastX = 5; // Target X position for animation
+            // Start the slide-out from where the overlay actually is, not from a hardcoded offset.
+            lastX = restingX;
         }
     }
 

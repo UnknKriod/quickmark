@@ -5,6 +5,14 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.Identifier;
 
 public class GuiComponent {
+    /**
+     * The mod icon, drawn in the team screen's sidebar. This is the same asset
+     * {@code fabric.mod.json} points at, so the branding only has to be changed once.
+     */
+    public static final Identifier LOGO = Identifier.of("quickmark", "logo.png");
+    /** Pixel size of the logo asset, needed to draw it at an arbitrary size. */
+    public static final int LOGO_TEXTURE_SIZE = 585;
+
     public static final Identifier INVITE_TEXTURE = Identifier.of("quickmark", "textures/gui/pending_invite.png");
     public static final Identifier INFO_TEXTURE = Identifier.of("quickmark", "textures/gui/info.png");
     public static final Identifier SUCCESS_TEXTURE = Identifier.of("quickmark", "textures/gui/success.png");

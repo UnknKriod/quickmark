@@ -21,15 +21,20 @@ public final class TeamUIUtils {
         context.fill(x + width - radius - scale(1), y + height - radius, x + width - radius, y + height, color);
     }
 
+    /**
+     * Draws a button that is never allowed to spill past {@code clipRight}.
+     * <p>
+     * {@code clipRight} is the panel's right edge in screen coordinates. Callers used to pass a
+     * width here instead, which made the clamp compute a nonsense edge and silently dropped the
+     * button entirely.
+     */
     public static void drawButton(DrawContext context, int x, int y, int width, int height,
                                    String text, int color,
-                                   int screenWidth, int panelWidth,
+                                   int clipRight,
                                    TextRenderer textRenderer,
                                    int scaledBorderRadius) {
-        int panelRightEdge = screenWidth / 2 + panelWidth / 2;
-
-        if (x + width > panelRightEdge) {
-            width = panelRightEdge - x;
+        if (x + width > clipRight) {
+            width = clipRight - x;
         }
 
         if (width > scale(20)) {
@@ -41,12 +46,15 @@ public final class TeamUIUtils {
         }
     }
 
+    /**
+     * Draws a square icon button that is never allowed to spill past {@code clipRight}.
+     * {@code clipRight} is the panel's right edge in screen coordinates.
+     */
     public static void drawIconButton(DrawContext context, int x, int y, int size, String icon, int color,
-                                       int screenWidth, int panelWidth,
+                                       int clipRight,
                                        TextRenderer textRenderer,
                                        int scaledBorderRadius) {
-        int panelRightEdge = screenWidth / 2 + panelWidth / 2;
-        int actualSize = Math.min(size, panelRightEdge - x);
+        int actualSize = Math.min(size, clipRight - x);
 
         if (actualSize > 0) {
             drawRoundedRect(context, x, y, actualSize, actualSize, scaledBorderRadius, color);

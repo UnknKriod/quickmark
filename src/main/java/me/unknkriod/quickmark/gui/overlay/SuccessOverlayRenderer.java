@@ -17,6 +17,11 @@ public class SuccessOverlayRenderer extends AbstractOverlayRenderer {
 
     public static final SuccessOverlayRenderer INSTANCE = new SuccessOverlayRenderer();
 
+    public SuccessOverlayRenderer() {
+        // Without this the inherited default (5000 ms) was used and DISPLAY_TIME was dead code.
+        this.displayTime = DISPLAY_TIME;
+    }
+
     @Override
     public void render(DrawContext context) {
         if (!isVisible() || playerName == null) return;
@@ -25,10 +30,9 @@ public class SuccessOverlayRenderer extends AbstractOverlayRenderer {
         int scaledWidth = (int) (BASE_WIDTH * scale);
         int scaledHeight = (int) (BASE_HEIGHT * scale);
 
-        int targetX = 5;
         int y = 60;
 
-        int x = calculateAnimationX(targetX, scaledWidth);
+        int x = calculateAnimationX(restingX, scaledWidth);
         if (!isVisible()) return;
 
         // Background
