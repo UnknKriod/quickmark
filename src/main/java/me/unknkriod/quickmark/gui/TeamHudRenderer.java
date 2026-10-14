@@ -1,5 +1,6 @@
 package me.unknkriod.quickmark.gui;
 
+import me.unknkriod.quickmark.gui.SteveSkin;
 import me.unknkriod.quickmark.team.TeamManager;
 import me.unknkriod.quickmark.team.TeamPlayer;
 import net.minecraft.client.MinecraftClient;
@@ -112,8 +113,7 @@ public class TeamHudRenderer {
 
     public static void renderHead(DrawContext context, UUID playerId, int x, int y, int size) {
         Identifier skinTexture = getSkinTexture(playerId);
-        if (skinTexture != null) {
-            // Render player head (8x8 pixels from texture)
+        if (skinTexture != null) {            // Render player head (8x8 pixels from texture)
             GuiComponent.drawTexture(context, skinTexture,
                     x,
                     y,
@@ -196,12 +196,16 @@ public class TeamHudRenderer {
 
     private static Identifier getSkinTexture(UUID playerId) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.getNetworkHandler() == null) return null;
+        if (client.getNetworkHandler() == null) return SteveSkin.TEXTURE;
 
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(playerId);
         if (entry != null) {
-            return entry.getSkinTextures().texture();
+            Identifier skin = entry.getSkinTextures().texture();
+            if (skin != null) return skin;
         }
-        return null;
+
+        // Not in the player list: the player is offline, or the entry carries no skin yet. Fall back
+        // to Steve so a head never renders as an empty hole.
+        return SteveSkin.TEXTURE;
     }
 }

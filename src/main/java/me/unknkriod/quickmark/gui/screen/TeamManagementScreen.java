@@ -24,6 +24,12 @@ import java.util.*;
 
 public class TeamManagementScreen extends Screen {
     private TextFieldWidget searchField;
+
+    // Button captions are shared between measuring the button and drawing it, so the two cannot
+    // disagree about how much room the label needs.
+    private static final String CLOSE_LABEL = "Close";
+    private static final String LEAVE_LABEL = "Leave Team";
+
     private final TeamScrollController scrollController;
     // Not final: these are derived from the current GUI scale, which changes when the window is
     // resized or toggled to fullscreen while the screen is open. See updateLayout().
@@ -231,12 +237,14 @@ public class TeamManagementScreen extends Screen {
     private Bounds closeButtonBounds(int panelLeft, int panelTop) {
         int contentLeft = panelLeft + sidebarWidth;
         int contentWidth = panelWidth - sidebarWidth;
+        int x = contentLeft + contentWidth - scale(CLOSE_BUTTON_RIGHT_PADDING);
+        int clipRight = TeamScreenLayout.panelRight(contentLeft, sidebarWidth, panelWidth);
+        // Width comes from the label, so a small window cannot trim the caption.
+        int width = Math.min(buttonWidth(CLOSE_BUTTON_WIDTH, textRenderer.getWidth(CLOSE_LABEL)), clipRight - x);
         int footerY = panelTop + panelHeight - scale(FOOTER_TOP_MARGIN);
-        return new Bounds(
-                contentLeft + contentWidth - scale(CLOSE_BUTTON_RIGHT_PADDING),
-                footerY + scale(CLOSE_BUTTON_TOP_PADDING),
-                scale(CLOSE_BUTTON_WIDTH),
-                scale(CLOSE_BUTTON_HEIGHT));
+
+        return new Bounds(x, footerY + scale(CLOSE_BUTTON_TOP_PADDING),
+                width, scale(CLOSE_BUTTON_HEIGHT));
     }
 
     /**
@@ -247,7 +255,8 @@ public class TeamManagementScreen extends Screen {
         int contentLeft = panelLeft + sidebarWidth;
         int x = contentLeft + searchFieldSidePadding();
         int clipRight = TeamScreenLayout.panelRight(contentLeft, sidebarWidth, panelWidth);
-        int width = Math.min(scale(LEAVE_BUTTON_WIDTH), clipRight - x);
+        // Width comes from the label, so a small window cannot trim "Leave Team".
+        int width = Math.min(buttonWidth(LEAVE_BUTTON_WIDTH, textRenderer.getWidth(LEAVE_LABEL)), clipRight - x);
 
         int footerY = panelTop + panelHeight - scale(FOOTER_TOP_MARGIN);
         return new Bounds(x, footerY + scale(CLOSE_BUTTON_TOP_PADDING),
@@ -267,12 +276,12 @@ public class TeamManagementScreen extends Screen {
 
         Bounds close = closeButtonBounds(panelLeft, panelTop);
         drawButton(context, close.x(), close.y(), close.width(), close.height(),
-                "Close", BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
+                CLOSE_LABEL, BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
 
         if (isLeaveButtonVisible()) {
             Bounds leave = leaveButtonBounds(panelLeft, panelTop);
             drawButton(context, leave.x(), leave.y(), leave.width(), leave.height(),
-                    "Leave Team", BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
+                    LEAVE_LABEL, BG_CARD_HOVER, clipRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
         }
     }
 
@@ -433,8 +442,12 @@ public class TeamManagementScreen extends Screen {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        if (relX >= actualCardWidth - scale(INVITE_CARD_BUTTON_SPACING) &&
-                relX < actualCardWidth - scale(7)) {
+        // Same width and anchor the renderer draws with, so the hit box cannot drift.
+        int width = buttonWidth(INVITE_CARD_BUTTON_WIDTH,
+                textRenderer.getWidth(InvitesTabRenderer.CANCEL_LABEL));
+        int left = cancelInviteButtonX(actualCardWidth, width);
+
+        if (relX >= left && relX < left + width) {
             TeamManager.cancelOutgoingInvitation(targetId);
             client.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.5f, 1.0f);
         }

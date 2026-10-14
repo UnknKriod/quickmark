@@ -1,5 +1,6 @@
 package me.unknkriod.quickmark.gui.screen.tab;
 
+import me.unknkriod.quickmark.gui.TeamHudRenderer;
 import me.unknkriod.quickmark.gui.screen.TeamScrollController;
 import me.unknkriod.quickmark.team.TeamManager;
 import net.minecraft.client.font.TextRenderer;
@@ -13,8 +14,16 @@ import static me.unknkriod.quickmark.gui.screen.TeamManagementScreen.renderEmpty
 import static me.unknkriod.quickmark.gui.screen.TeamScreenLayout.*;
 import static me.unknkriod.quickmark.gui.screen.TeamSidebarRenderer.*;
 import static me.unknkriod.quickmark.gui.screen.TeamUIUtils.*;
+import static me.unknkriod.quickmark.gui.screen.TeamUIUtils.drawCentredGlyph;
 
 public class InvitesTabRenderer {
+
+    /** Shared with the click handler, which measures the same button. */
+    public static final String CANCEL_LABEL = "Cancel";
+
+    /** Badges drawn on the bottom-right corner of each card's head. */
+    private static final String INCOMING_BADGE = "👥";
+    private static final String OUTGOING_BADGE = "📨";
 
     public static void render(
             DrawContext context,
@@ -67,7 +76,7 @@ public class InvitesTabRenderer {
                         mouseX < x + scale(CARD_CONTENT_LEFT_PADDING) + actualCardWidth &&
                         mouseY >= cardY && mouseY < cardY + cardHeight;
 
-                renderIncomingInviteCard(context, textRenderer, entry.getValue(),
+                renderIncomingInviteCard(context, textRenderer, entry.getKey(), entry.getValue(),
                         x + scale(CARD_CONTENT_LEFT_PADDING), cardY, mouseX, mouseY,
                         actualCardWidth, cardHeight, panelRight, isHovered);
                 cardY += cardHeight + cardSpacing;
@@ -85,7 +94,8 @@ public class InvitesTabRenderer {
                         mouseX < x + scale(CARD_CONTENT_LEFT_PADDING) + actualCardWidth &&
                         mouseY >= cardY && mouseY < cardY + cardHeight;
 
-                renderOutgoingInviteCard(context, textRenderer, entry.getValue().getKey(),
+                renderOutgoingInviteCard(context, textRenderer, entry.getKey(),
+                        entry.getValue().getKey(),
                         entry.getValue().getValue(),
                         x + scale(CARD_CONTENT_LEFT_PADDING), cardY,
                         actualCardWidth, cardHeight, panelRight, isHovered);
@@ -94,8 +104,27 @@ public class InvitesTabRenderer {
         }
     }
 
-    private static void renderIncomingInviteCard(DrawContext context, TextRenderer textRenderer, String senderName,
-                                                 int x, int y, int mouseX, int mouseY,
+    /**
+     * Draws the player's head in the card's left column, sized to sit level with the text, plus the
+     * card's icon centred on the right.
+     * <p>
+     * Both invite cards use this, so they stay identical.
+     */
+    private static void renderHeadAndIcon(DrawContext context, TextRenderer textRenderer, UUID playerId,
+                                          String icon, int iconColor,
+                                          int x, int y, int actualCardWidth, int cardHeight) {
+        int headSize = scale(INVITE_CARD_HEAD_SIZE);
+        int headX = x + scale(INVITE_CARD_HEAD_LEFT_PADDING);
+        TeamHudRenderer.renderHead(context, playerId, headX, y + (cardHeight - headSize) / 2, headSize);
+
+        // Icon on the right, centred in the card rather than on a text line.
+        int iconX = x + inviteCardIconX(actualCardWidth, textRenderer.fontHeight);
+        drawCentredGlyph(context, textRenderer, icon, iconX + textRenderer.fontHeight / 2,
+                y + inviteCardCentredGlyphY(cardHeight, textRenderer.fontHeight), iconColor);
+    }
+
+    private static void renderIncomingInviteCard(DrawContext context, TextRenderer textRenderer, UUID senderId,
+                                                 String senderName, int x, int y, int mouseX, int mouseY,
                                                  int actualCardWidth, int cardHeight, int panelRight,
                                                  boolean isHovered) {
         int cardColor = isHovered ? BG_CARD_HOVER : BG_CARD;
@@ -107,11 +136,8 @@ public class InvitesTabRenderer {
         int textTop = y + centeredTextBlockTop(cardHeight, textRenderer.fontHeight, lineGap);
         int subtitleTop = textTop + textRenderer.fontHeight + lineGap;
 
-        String icon = "👥";
-        context.drawText(textRenderer, icon,
-                x + scale(INVITE_CARD_ICON_LEFT_PADDING),
-                textTop,
-                ACCENT_PRIMARY, false);
+        renderHeadAndIcon(context, textRenderer, senderId, INCOMING_BADGE, ACCENT_PRIMARY,
+                x, y, actualCardWidth, cardHeight);
 
         context.drawText(textRenderer, senderName + " invited you",
                 x + scale(INVITE_CARD_TEXT_LEFT_PADDING),
@@ -140,8 +166,9 @@ public class InvitesTabRenderer {
         }
     }
 
-    private static void renderOutgoingInviteCard(DrawContext context, TextRenderer textRenderer, String targetName,
-                                                 long remainingTime, int x, int y, int actualCardWidth, int cardHeight,
+    private static void renderOutgoingInviteCard(DrawContext context, TextRenderer textRenderer, UUID targetId,
+                                                 String targetName, long remainingTime, int x, int y,
+                                                 int actualCardWidth, int cardHeight,
                                                  int panelRight, boolean isHovered) {
         int cardColor = isHovered ? BG_CARD_HOVER : BG_CARD;
         drawRoundedRect(context, x, y, actualCardWidth, cardHeight,
@@ -152,11 +179,9 @@ public class InvitesTabRenderer {
         int textTop = y + centeredTextBlockTop(cardHeight, textRenderer.fontHeight, lineGap);
         int subtitleTop = textTop + textRenderer.fontHeight + lineGap;
 
-        String icon = "📨";
-        context.drawText(textRenderer, icon,
-                x + scale(INVITE_CARD_ICON_LEFT_PADDING),
-                textTop,
-                0xFF_F59E0B, false);
+        // The invited player's own head on the left, envelope on the right.
+        renderHeadAndIcon(context, textRenderer, targetId, OUTGOING_BADGE, 0xFF_F59E0B,
+                x, y, actualCardWidth, cardHeight);
 
         context.drawText(textRenderer, "Invited " + targetName,
                 x + scale(INVITE_CARD_TEXT_LEFT_PADDING),
@@ -168,11 +193,15 @@ public class InvitesTabRenderer {
                 x + scale(INVITE_CARD_TEXT_LEFT_PADDING),
                 subtitleTop, TEXT_SECONDARY, false);
 
-        drawButton(context, x + actualCardWidth - scale(INVITE_CARD_BUTTON_SPACING),
+        // Width comes from the label so a small window cannot trim "Cancel"; the button is anchored
+        // by its right edge and grows leftwards, staying inside the card.
+        int cancelWidth = buttonWidth(INVITE_CARD_BUTTON_WIDTH, textRenderer.getWidth(CANCEL_LABEL));
+        drawButton(context,
+                x + cancelInviteButtonX(actualCardWidth, cancelWidth),
                 y + (cardHeight - scale(INVITE_CARD_BUTTON_HEIGHT)) / 2,
-                scale(INVITE_CARD_BUTTON_WIDTH),
+                cancelWidth,
                 scale(INVITE_CARD_BUTTON_HEIGHT),
-                "Cancel",
+                CANCEL_LABEL,
                 ACCENT_DANGER,
                 panelRight, textRenderer, scale(BUTTON_BORDER_RADIUS));
     }

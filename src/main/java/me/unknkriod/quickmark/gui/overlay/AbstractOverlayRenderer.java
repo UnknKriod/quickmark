@@ -2,6 +2,7 @@ package me.unknkriod.quickmark.gui.overlay;
 
 import com.mojang.authlib.GameProfile;
 import me.unknkriod.quickmark.gui.GuiComponent;
+import me.unknkriod.quickmark.gui.SteveSkin;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
@@ -55,17 +56,21 @@ public abstract class AbstractOverlayRenderer {
 
     protected Identifier getSkinTexture() {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (playerName == null) return null;
+        if (playerName == null || playerId == null) return SteveSkin.TEXTURE;
 
         GameProfile profile = new GameProfile(playerId, playerName);
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(playerId);
         if (entry != null) {
-            return entry.getSkinTextures().texture();
+            Identifier skin = entry.getSkinTextures().texture();
+            if (skin != null) return skin;
         }
 
         PlayerSkinProvider provider = client.getSkinProvider();
         SkinTextures textures = provider.getSkinTextures(profile);
-        return textures.texture();
+        Identifier skin = textures.texture();
+        // getSkinTextures already substitutes vanilla's default, but guard anyway so the head can
+        // never be drawn with a null texture.
+        return skin != null ? skin : SteveSkin.TEXTURE;
     }
 
     protected void renderPlayerHead(DrawContext context, int x, int y) {
@@ -91,10 +96,12 @@ public abstract class AbstractOverlayRenderer {
             context.getMatrices().translate(offsetX, offsetY);
             context.getMatrices().scale(scaleFactor, scaleFactor);
 
-            // Render player hat layer (40x8 pixels from texture)
+            // Draw at the origin of the transformed space: the translate above already lands it at
+            // (offsetX, offsetY). Passing (x, y) here mapped to (offsetX + 1.05x, ...), so the hat
+            // was drawn roughly a whole head-width away from the head.
             GuiComponent.drawTexture(context, skin,
-                    x,
-                    y,
+                    0,
+                    0,
                     40, 8,
                     scaledHeadSize, scaledHeadSize,
                     8, 8, 64, 64);

@@ -28,7 +28,15 @@ public class TeamManager {
     private static final Map<UUID, String> pendingIncomingInvitations = new ConcurrentHashMap<>();
 
     private static final Map<UUID, Long> outgoingInvitationTimestamps = new ConcurrentHashMap<>();
-    private static final long OUTGOING_INVITATION_TIMEOUT = 10000; // 10 seconds
+
+    /**
+     * How long an invitation stays valid after it is sent.
+     * <p>
+     * The receiver's overlay must stay up at least this long: it auto-declines when it closes, so a
+     * shorter overlay sent the decline while the sender still considered the invitation pending,
+     * and the outgoing card on the Invites tab vanished with seconds still on its countdown.
+     */
+    public static final long INVITATION_LIFETIME_MS = 10000; // 10 seconds
 
     private static class CacheEntry {
         String name;
@@ -104,7 +112,7 @@ public class TeamManager {
             UUID playerId = entry.getKey();
             long sendTime = entry.getValue();
 
-            if (currentTime - sendTime > OUTGOING_INVITATION_TIMEOUT) {
+            if (currentTime - sendTime > INVITATION_LIFETIME_MS) {
                 String playerName = pendingOutgoingInvitations.get(playerId);
                 if (playerName != null) {
                     Quickmark.log("Outgoing invitation to " + playerName + " has timed out");
@@ -665,7 +673,7 @@ public class TeamManager {
         if (sendTime == null) return 0;
 
         long elapsed = System.currentTimeMillis() - sendTime;
-        long remaining = OUTGOING_INVITATION_TIMEOUT - elapsed;
+        long remaining = INVITATION_LIFETIME_MS - elapsed;
         return Math.max(0, remaining);
     }
 
@@ -686,7 +694,7 @@ public class TeamManager {
             if (sendTime == null) continue;
 
             long elapsed = currentTime - sendTime;
-            long remaining = OUTGOING_INVITATION_TIMEOUT - elapsed;
+            long remaining = INVITATION_LIFETIME_MS - elapsed;
 
             if (remaining > 0) {
                 result.put(playerId, new AbstractMap.SimpleEntry<>(playerName, remaining));

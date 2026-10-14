@@ -105,15 +105,36 @@ public final class TeamScreenLayout {
     // Invites tab
     // Card text is positioned by centring the two-line block in the card, so only the horizontal
     // paddings and the gap between the lines are fixed.
-    public static final int INVITE_CARD_ICON_LEFT_PADDING = 12;
     public static final int INVITE_CARD_TEXT_LEFT_PADDING = 30;
     /** Blank space between the two lines of an invite card: the title and the subtitle below it. */
-    public static final int INVITE_CARD_LINE_GAP = 6;
+    public static final int INVITE_CARD_LINE_GAP = 7;
 
-    public static final int INVITE_CARD_BUTTON_RIGHT_PADDING = 135;
     public static final int INVITE_CARD_BUTTON_WIDTH = 60;
     public static final int INVITE_CARD_BUTTON_HEIGHT = 21;
-    public static final int INVITE_CARD_BUTTON_SPACING = 68;
+    /**
+     * Right inset of an outgoing invite card's Cancel button. The button is anchored by this edge so
+     * a wider label grows leftwards into the card instead of out of it.
+     */
+    public static final int INVITE_CARD_CANCEL_RIGHT_PADDING = 12;
+
+    /**
+     * Both invite cards show the other player's head on the left and an icon on the right, the icon
+     * centred in the card. The head keeps the card's left column; the icon sits clear of the text.
+     */
+    public static final int INVITE_CARD_HEAD_LEFT_PADDING = 8;
+    public static final int INVITE_CARD_HEAD_SIZE = 20;
+    /** Inset of the icon from the card's right edge. */
+    public static final int INVITE_CARD_ICON_RIGHT_PADDING = 12;
+
+    /** X of a card's icon, relative to the card's left edge, given the icon's width. */
+    public static int inviteCardIconX(int actualCardWidth, int iconWidth) {
+        return actualCardWidth - scale(INVITE_CARD_ICON_RIGHT_PADDING) - iconWidth;
+    }
+
+    /** Y that centres a glyph of the given font height in a card. */
+    public static int inviteCardCentredGlyphY(int cardHeight, int fontHeight) {
+        return (cardHeight - fontHeight) / 2;
+    }
 
     public static final int INVITE_ACTION_BUTTON_SIZE = 18;
     public static final int INVITE_ACTION_BUTTON_SPACING = 25;
@@ -222,6 +243,50 @@ public final class TeamScreenLayout {
     /** X of the search field and of the header text, relative to the content area's left edge. */
     public static int searchFieldSidePadding() {
         return scale(SEARCH_FIELD_SIDE_PADDING);
+    }
+
+    /**
+     * Blank space a button keeps to the left and right of its label.
+     */
+    public static final int BUTTON_LABEL_PADDING = 10;
+
+    /**
+     * Width of a labelled button: never narrower than its label needs, however far the GUI scale
+     * shrinks.
+     * <p>
+     * The label is drawn at the client's fixed font height while the button's nominal width is
+     * scaled, so on a small window the scaled width falls below the label and the button draws a
+     * trimmed caption. Sizing the button from the measured label keeps the caption intact.
+     */
+    public static int buttonWidth(int nominalWidth, int textWidth) {
+        return Math.max(scale(nominalWidth), textWidth + scale(BUTTON_LABEL_PADDING));
+    }
+
+    /**
+     * X of a button's label: centred on the button the way vanilla centres widget labels, so an odd
+     * width cannot bias the caption to one side.
+     */
+    public static int buttonLabelX(int x, int width, int textWidth) {
+        return x + width / 2 - textWidth / 2;
+    }
+
+    /**
+     * Y of a button's label.
+     * <p>
+     * Matches vanilla's {@code (top + bottom - lineHeight) / 2 + 1}. The old {@code (height - 8) / 2}
+     * happened to agree only for an even button height; at an odd height it lifted the caption one
+     * GUI unit, which a large GUI scale turns into a clearly off-centre label.
+     */
+    public static int buttonLabelY(int y, int height, int fontHeight) {
+        return y + (height - fontHeight) / 2 + 1;
+    }
+
+    /**
+     * X of an outgoing invite card's Cancel button, relative to the card's left edge. Anchored by
+     * its right edge, so a wider label grows leftwards and stays inside the card.
+     */
+    public static int cancelInviteButtonX(int actualCardWidth, int buttonWidth) {
+        return actualCardWidth - scale(INVITE_CARD_CANCEL_RIGHT_PADDING) - buttonWidth;
     }
 
     /**

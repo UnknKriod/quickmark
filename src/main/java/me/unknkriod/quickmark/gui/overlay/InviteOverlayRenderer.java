@@ -18,11 +18,21 @@ import static me.unknkriod.quickmark.gui.GuiComponent.INVITE_TEXTURE;
 public class InviteOverlayRenderer extends AbstractOverlayRenderer {
     private static final int BASE_WIDTH = 462;
     private static final int BASE_HEIGHT = 57;
-    private static final long DISPLAY_TIME = 5000;
+    /**
+     * The overlay has to stay up for as long as the invitation is valid: it auto-declines when it
+     * closes, so a shorter window told the sender "declined" while their card still had seconds to
+     * run and the invitation was still pending on their side.
+     */
+    private static final long DISPLAY_TIME = TeamManager.INVITATION_LIFETIME_MS;
 
     private boolean responseSent = false;
 
     public static final InviteOverlayRenderer INSTANCE = new InviteOverlayRenderer();
+
+    public InviteOverlayRenderer() {
+        // Also drives the base class's auto-hide, so the overlay and the decline end together.
+        this.displayTime = DISPLAY_TIME;
+    }
 
     @Override
     public void render(DrawContext context) {

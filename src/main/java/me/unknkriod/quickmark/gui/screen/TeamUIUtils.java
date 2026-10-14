@@ -39,10 +39,12 @@ public final class TeamUIUtils {
 
         if (width > scale(20)) {
             drawRoundedRect(context, x, y, width, height, scaledBorderRadius, color);
-            String trimmedText = textRenderer.trimToWidth(text, width - scale(10));
+            String trimmedText = textRenderer.trimToWidth(text, width - scale(BUTTON_LABEL_PADDING));
             int textWidth = textRenderer.getWidth(trimmedText);
             context.drawText(textRenderer, trimmedText,
-                    x + (width - textWidth) / 2, y + (height - 8) / 2, TEXT_PRIMARY, false);
+                    buttonLabelX(x, width, textWidth),
+                    buttonLabelY(y, height, textRenderer.fontHeight),
+                    TEXT_PRIMARY, false);
         }
     }
 
@@ -63,6 +65,19 @@ public final class TeamUIUtils {
             int iconY = y + (actualSize - textRenderer.fontHeight) / 2 + 1;
             context.drawText(textRenderer, icon, iconX, iconY, TEXT_PRIMARY, false);
         }
+    }
+
+    /**
+     * Draws a single glyph so that its own slot is centred on {@code centreX}.
+     * <p>
+     * Centring by {@code getWidth()} is wrong for emoji: the renderer lays such glyphs out in a
+     * square slot as tall as the font, while the reported string width can be narrower, so the
+     * glyph ends up visibly off-axis. Drawing the glyph at {@code centreX - fontHeight / 2} lines
+     * the slot up with the target instead.
+     */
+    public static void drawCentredGlyph(DrawContext context, TextRenderer textRenderer, String glyph,
+                                        int centreX, int y, int color) {
+        context.drawText(textRenderer, glyph, centreX - textRenderer.fontHeight / 2, y, color, true);
     }
 
     public static boolean mouseInRect(int mouseX, int mouseY, int rx, int ry, int rw, int rh) {

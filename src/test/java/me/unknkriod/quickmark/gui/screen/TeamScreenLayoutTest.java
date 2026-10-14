@@ -135,6 +135,50 @@ class TeamScreenLayoutTest {
     }
 
     @Test
+    void buttonLabelsFitAtEveryGuiScale() throws Exception {
+        // The label is drawn at the client's fixed font height while the button's nominal width is
+        // scaled, so on a small window the caption used to be trimmed. Drives currentScale directly
+        // because it is the only way to exercise the scaling from a unit test.
+        java.lang.reflect.Field scaleField = TeamScreenLayout.class.getDeclaredField("currentScale");
+        scaleField.setAccessible(true);
+        float original = scaleField.getFloat(null);
+        int cancelText = 32;   // "Cancel" at the fixed font height
+        int leaveText = 48;    // "Leave Team"
+
+        try {
+            for (float s : new float[] {0.4f, 0.5f, 0.75f, 1.0f, 1.75f}) {
+                scaleField.setFloat(null, s);
+                int padding = TeamScreenLayout.scale(TeamScreenLayout.BUTTON_LABEL_PADDING);
+
+                assertTrue(TeamScreenLayout.buttonWidth(TeamScreenLayout.INVITE_CARD_BUTTON_WIDTH, cancelText)
+                                - padding >= cancelText, "Cancel trimmed at scale " + s);
+                assertTrue(TeamScreenLayout.buttonWidth(TeamScreenLayout.LEAVE_BUTTON_WIDTH, leaveText)
+                                - padding >= leaveText, "Leave Team trimmed at scale " + s);
+                assertTrue(TeamScreenLayout.buttonWidth(TeamScreenLayout.CLOSE_BUTTON_WIDTH, 30)
+                                - padding >= 30, "Close trimmed at scale " + s);
+            }
+
+            // And the label really does widen the button where the nominal width is too small.
+            scaleField.setFloat(null, 0.4f);
+            assertTrue(TeamScreenLayout.buttonWidth(TeamScreenLayout.INVITE_CARD_BUTTON_WIDTH, cancelText)
+                            > TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_BUTTON_WIDTH),
+                    "the label must widen the button when the scale shrinks");
+        } finally {
+            scaleField.setFloat(null, original);
+        }
+    }
+
+    @Test
+    void widerCancelButtonStillFitsInsideTheCard() {
+        int cardWidth = TeamScreenLayout.cardContentWidth(PANEL, SIDEBAR, CARD);
+        int width = TeamScreenLayout.buttonWidth(TeamScreenLayout.INVITE_CARD_BUTTON_WIDTH, 32);
+        int x = TeamScreenLayout.cancelInviteButtonX(cardWidth, width);
+
+        assertTrue(x >= 0, "the button must stay inside the card");
+        assertTrue(x + width <= cardWidth, "the button must not hang out of the card");
+    }
+
+    @Test
     void searchFieldSitsAboveTheTitleLineAndClearsTheSubtitle() {
         int fieldTop = TeamScreenLayout.scale(TeamScreenLayout.SEARCH_FIELD_TOP_PADDING);
         int fieldBottom = fieldTop + TeamScreenLayout.scale(TeamScreenLayout.SEARCH_FIELD_HEIGHT);
@@ -144,6 +188,97 @@ class TeamScreenLayoutTest {
         assertTrue(fieldTop < titleTop, "the field starts above the title's line");
         assertTrue(fieldBottom < subtitleTop, "the field must not reach the subtitle");
         assertTrue(subtitleTop - fieldBottom >= 2, "there must be a visible gap above the subtitle");
+    }
+
+    @Test
+    void buttonLabelSitsWhereVanillaPutsIt() {
+        // Vanilla ClickableWidget.drawScrollableText: (top + bottom - 9) / 2 + 1, with top = 0.
+        int fontHeight = 9;
+
+        for (int height : new int[] {9, 15, 18, 21, 24, 27, 33, 42}) {
+            assertEquals((height - 9) / 2 + 1, TeamScreenLayout.buttonLabelY(0, height, fontHeight),
+                    "vanilla y offset for a button " + height + " tall");
+        }
+    }
+
+    @Test
+    void oldFormulaLiftedOddHeightButtons() {
+        // Regression: (height - 8) / 2 agreed with vanilla only for an even height; at an odd one it
+        // put the caption one GUI unit high, which a large GUI scale makes obvious.
+        int fontHeight = 9;
+
+        for (int height : new int[] {15, 21, 27}) {
+            int old = (height - 8) / 2;
+            int vanilla = (height - 9) / 2 + 1;
+
+            assertNotEquals(old, vanilla, "the old formula was off for a button " + height + " tall");
+            assertEquals(vanilla, TeamScreenLayout.buttonLabelY(0, height, fontHeight));
+        }
+    }
+
+    @Test
+    void buttonLabelIsCentredOnTheButton() {
+        for (int width : new int[] {60, 67, 90, 157}) {
+            for (int text : new int[] {32, 47, 48, 49}) {
+                int left = TeamScreenLayout.buttonLabelX(0, width, text);
+                int leftMargin = left;
+                int rightMargin = width - (left + text);
+
+                assertTrue(Math.abs(leftMargin - rightMargin) <= 1,
+                        "width " + width + " text " + text + ": margins " + leftMargin + "/" + rightMargin);
+            }
+        }
+    }
+
+    @Test
+    void inviteCardHeadFitsTheLeftColumn() {
+        int headSize = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_HEAD_SIZE);
+        int headLeft = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_HEAD_LEFT_PADDING);
+        int textLeft = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_TEXT_LEFT_PADDING);
+        int cardWidth = TeamScreenLayout.cardContentWidth(PANEL, SIDEBAR, CARD);
+        int cardHeight = TeamScreenLayout.scale(TeamScreenLayout.BASE_CARD_HEIGHT);
+
+        // Both invite cards draw the head and the icon through the same helper, so this covers both.
+        assertTrue(headLeft >= 0 && headLeft + headSize <= cardWidth, "the head must fit inside the card");
+        assertTrue(headLeft + headSize <= textLeft, "the head must not run under the card's text");
+        assertTrue(headSize <= cardHeight, "the head must fit the card's height");
+    }
+
+    @Test
+    void inviteCardIconSitsOnTheRightCentredInTheCard() {
+        int cardWidth = TeamScreenLayout.cardContentWidth(PANEL, SIDEBAR, CARD);
+        int cardHeight = TeamScreenLayout.scale(TeamScreenLayout.BASE_CARD_HEIGHT);
+        int fontHeight = 9;
+        int textLeft = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_TEXT_LEFT_PADDING);
+        int headLeft = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_HEAD_LEFT_PADDING);
+        int headSize = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_HEAD_SIZE);
+
+        // The glyph is drawn in a square slot as tall as the font, so that slot is its extent.
+        int iconX = TeamScreenLayout.inviteCardIconX(cardWidth, fontHeight);
+        int iconY = TeamScreenLayout.inviteCardCentredGlyphY(cardHeight, fontHeight);
+
+        assertTrue(iconX + fontHeight <= cardWidth, "the icon must stay inside the card");
+        assertTrue(iconX >= 0, "the icon must not start off the card");
+        // Right of the head column, so the two never overlap.
+        assertTrue(iconX >= headLeft + headSize, "the icon must clear the head");
+        // Centred vertically: equal margins above and below.
+        assertTrue(Math.abs(iconY - (cardHeight - (iconY + fontHeight))) <= 1,
+                "the icon must be centred in the card");
+        // And it is to the right of the text column, at the card's trailing edge.
+        assertTrue(iconX > textLeft, "the icon belongs on the trailing side of the card");
+    }
+
+    @Test
+    void inviteCardLinesHaveVisibleAirBetweenThem() {
+        int cardHeight = TeamScreenLayout.scale(TeamScreenLayout.BASE_CARD_HEIGHT);
+        int fontHeight = 9;
+        int gap = TeamScreenLayout.scale(TeamScreenLayout.INVITE_CARD_LINE_GAP);
+
+        int top = TeamScreenLayout.centeredTextBlockTop(cardHeight, fontHeight, gap);
+        int second = top + fontHeight + gap;
+
+        assertTrue(gap >= TeamScreenLayout.scale(6), "the two lines must not be cramped");
+        assertTrue(second + fontHeight <= cardHeight, "the second line must stay inside the card");
     }
 
     @Test
